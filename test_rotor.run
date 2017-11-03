@@ -1,0 +1,140 @@
+
+//----------------------------------------------------------------------------
+//  Test of a rotating blade row
+//----------------------------------------------------------------------------
+
+
+//---------------------------------------------------------------------------
+//  set thermo package
+//---------------------------------------------------------------------------
+setThermoPackage( "GasTbl" );
+
+
+//---------------------------------------------------------------------------
+//  include OTAC elements and files
+//---------------------------------------------------------------------------
+#include <elements\OTAC.fnc>
+#include <elements\OTACstartAssembly.int>
+#include <elements\ExpanderAssembly.int>
+#include <elements\ReducerAssembly.int>
+#include <elements\BladeSegment.int>
+#include <elements\BladeRow.int>
+#include <elements\BladeGeometry.int>
+#include <elements\OTACLossModel.int>
+
+
+//---------------------------------------------------------------------------
+//  set the number of streams
+//---------------------------------------------------------------------------
+OTACdefaults { 
+   numberOfStreams = 1;
+} 
+
+
+//---------------------------------------------------------------------------
+//  declare the model elements
+//---------------------------------------------------------------------------
+OTACstart start { 
+   // set the flow conditions
+   Tt = 518.67;
+   Pt = 14.696; 
+   W = 10.0;
+   MNdes = 0.500;
+
+   // set the expanded OTAC conditions
+   radiusMean_in = 2.5;
+   alpha = 0.*PI/180.;
+   phi = 0.0;
+} 
+
+
+Expander expander { 
+} 
+
+
+BladeRow rotor1 {
+   setOption( "switchRotate", "ROTATING" );
+   setOption( "switchSpanwiseInput", "PR" );
+// setOption( "switchSpanwiseInput", "WORK" );
+   switchBladeAngleSign = "POSITIVE";
+   switchLossBasis = "PTOTREL";
+
+   radiusMean_in = 2.5;
+   dep_DESIGN_Area.eq_lhs = "Fl_O1.alpha";
+   dep_DESIGN_Area.eq_rhs = "50.0*C_DEGtoRAD";
+
+   Table S_INPUTvR( real pctSpan ) {  // PR
+      pctSpan = { 0.0000, 0.5000, 1.0000 } 
+      PR   =    { 1.5500, 1.5500, 1.5500 } 
+   } 
+
+   numberOfBlades = 25;
+   BladeGeometry S_Geometry { }
+
+}
+
+
+Shaft rotorShaft {
+   ShaftInputPort Sh_fan;
+   Nmech = 30000.;
+}
+
+
+Reducer reducer { 
+}
+
+
+FlowEnd end { }
+
+
+//----------------------------------------------------------------
+//  link everything together
+//----------------------------------------------------------------
+linkPorts( "start.Fl_O",  "expander.Fl_I", "link0" );
+linkSegmentPorts( "expander",   "rotor1",    "link3" );
+linkSegmentPorts( "rotor1",     "reducer",   "link4" );
+linkPorts( "reducer.Fl_O", "end.Fl_I",  "fsend" );
+linkPorts( "rotor1.Sh_O", "rotorShaft.Sh_fan", "link_fan" );
+
+
+
+//----------------------------------------------------------------
+//  add the loss models to rows
+//----------------------------------------------------------------
+rotor1.addSubelementToStack( "OTACLossModel", "rotorLoss" );
+
+
+//------------------------------------------------------------------------
+//             ENABLE EXPANDED FLOWSTATION CALCULATIONS
+//------------------------------------------------------------------------
+OTACenable();
+
+
+//------------------------------------------------------------------------
+//                         CREATE VIEWER 
+//------------------------------------------------------------------------
+#include <view\OTACpage.view>
+pvStream.filename = "test_output/test_rotor.out";
+
+//#include <view\OTACviewer.int>
+//OTACstream.filename = "test_output/test_IGV_R1.out";
+
+
+ 
+//------------------------------------------------------------------------
+//                          DESIGN POINT
+//------------------------------------------------------------------------
+setOption( "switchDes", "DESIGN" );
+autoSolverSetup();
+
+solver.removeDependent( "rotorShaft.integrate_Nmech" );
+
+//guessBRvalues( "stator0", 10.*C_DEGtoRAD, 0.60, 1.0, 0.0 );
+
+run();
+OTACpage.display();
+//PERF.print_perf();
+cout << rotor1.numberOfBlades << endl;
+cout << rotor1.bladeSegment_1.solidity << endl;
+cout << rotor1.bladeSegment_1.diffusionFactor << endl;
+

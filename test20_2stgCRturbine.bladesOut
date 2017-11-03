@@ -1,0 +1,35 @@
+rotor1 = { 
+   'shape'       : 'NEGATIVE',
+   'bladerowName': 'rotor1',
+   'velocityIn'  : 1039.86,
+   'alphaIn'     : 35,
+   'UbladeIn'    : 1047.2,
+   'vRelIn'      : 963.717,
+   'betaIn'      : -27.8871,
+   'bladeAngleIn': -27.8871,
+   'velocityOut' : 1186.42,
+   'alphaOut'    : -44.9415,
+   'UbladeOut'   : 1047.2,
+   'vRelOut'     : 2063.85,
+   'betaOut'     : -65.9897,
+   'bladeAngleOut':-65.9897
+ }
+
+rotor2 = { 
+   'shape'       : 'POSITIVE',
+   'bladerowName': 'rotor2',
+   'velocityIn'  : 1186.42,
+   'alphaIn'     : -44.9415,
+   'UbladeIn'    : -890.118,
+   'vRelIn'      : 841.393,
+   'betaIn'      : 3.54664,
+   'bladeAngleIn': 3.54664,
+   'velocityOut' : 1139.23,
+   'alphaOut'    : 48.2242,
+   'UbladeOut'   : -890.118,
+   'vRelOut'     : 1898.05,
+   'betaOut'     : 66.43,
+   'bladeAngleOut':66.43
+ }
+
+BRnames = [ rotor1, rotor2,  ]

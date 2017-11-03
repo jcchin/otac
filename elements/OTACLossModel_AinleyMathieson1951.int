@@ -1,0 +1,541 @@
+//=============================================================================
+//                                    OTAC
+//                Object-Oriented Turbomachinery Analysis Code
+//
+//     written by: Eric S. Hendricks and Scott M. Jones
+//
+//                   Ainley-Mathieson Loss Model based on
+//         "A Method of Performance Estimation for Axial Flow Turbines"
+//                 R. & M. No. 2974   A.R.C Technical Report
+//
+//=============================================================================
+
+#include <InterpIncludes.ncp>
+
+
+class AM_LossModel extends OTACLossModel {
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++   DOCUMENTATION   ++++++++++
+   //-------------------------------------------------------------------------
+   title = "";
+
+   description = isA()+ " is a loss model for axial turbine blade rows.  The
+   loss model will return an estimated value for loss (lossReturned) based
+   on the blade segment current conditions; the blade row solver will
+   enforce the condition that the loss estimated from this socket equals the
+   assumed, or actual, loss for the blade segment.  The form of the loss is
+   set by the blade row attribute switchLossBasis.
+   This loss model applies to both vane/nozzle blade rows and rotor blade 
+   rows at design and off-design conditions for meanline analyses; 
+   secondary and tip clearance loss predictions may not directly translate
+   to streamline analyses. ";
+
+   usageNotes = isA() + " is an implementation of the Ainley-Mathieson loss
+   model for turbine blade rows.  This model uses a loss defined by
+             ( PtRel_in - PtRel_out ) / (PtRel_out - Ps_out)
+   which requires the parent attribute 'switchLossBasis' to be set to 
+   'TURBINE'.
+   This model includes a calculation of blade row exit flow angle based on
+   particular blade geometry parameters; this flow angle may not equal the 
+   exit flow angle in the parent blade segment because the loss model uses
+   an exit flow angle predicated on zero tip clearance to calculate losses.
+   Since exit blade angle is known, this estimate of exit flow angle allows 
+   for a specification of deviation angle, which is done here rather than 
+   in a deviation subelement. ";
+
+
+   socketRequired = FALSE;
+
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++  SET UP VARIABLES  ++++++++++
+   //-------------------------------------------------------------------------
+   real alpha2 {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "blade segment exit flow angle used for loss predictions";
+   }
+   real alphaMean {
+      value = 0.00; IOstatus = OUTPUT; units = NONE;
+      description = "mean flow angle, average of entrance and exit relative angles";
+   }
+   real alphaRef {
+      value = 0.00; IOstatus = OUTPUT; units = NONE;
+      description = "reference flow angle, flow angle adjusted to a s/c of 0.75";
+   }
+   real angle_oqs {
+      value = 0.00; IOstatus = OUTPUT; units = NONE;
+      description = "arccosine of the ratio of blade opening to pitch";
+   }
+   real B {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "empirical factor defining tip clearance loss";
+   }
+   real beta1 {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "blade segment entrance blade angle";
+   }
+   real bladeAngle {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "blade segment exit blade angle, assumed equal to angle_oqs";
+   }
+   real flowAngle {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "estimated blade segment exit flow angle";
+   }
+   real flowAngleSonic {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "estimated exit flow angle for exit MN = 1";
+   }
+   real flowAngleSonicTC {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "estimated exit flow angle for exit MN = 1 with tip clearance effect";
+   }
+   real flowAngleStar {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "estimated exit flow angle based only on angle_oqs (blade exit angle)";
+   }
+   real flowAngleSubsonic {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "estimated exit flow angle for exit MN < 0.5";
+   }
+   real flowAngleSubsonicTC {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "estimated exit flow angle for exit MN < 0.5 with tip clearance effect";
+   }
+   real iStall {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "stalling incidence angle for this blade segment";
+   }
+   real iStallDelta {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "adjustment to stalling incidence angle for s/c other than 0.75";
+   }
+   real iStallRef {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "stalling incidence angle when s/c = 0.75";
+   }
+   real lambda {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "empirical factor defining secondary loss";
+   }
+   real liftCoeff {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "blade segment lift coefficient CL divided by s/c";
+   }
+/* real lossReturned {
+      value = 0.06; IOstatus = OUTPUT; units = NONE;
+      description = "estimated loss for this blade segment";
+   } */
+   real profileLoss {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "estimated loss due to blade profile, Yp";
+   }
+   real secondaryLoss {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "estimated loss due to secondary flows, Ys";
+   }
+   real TEcorrection {
+      value = 1.00; IOstatus = OUTPUT; units = NONE;
+      description = "correction to blade losses due to trailing edge thickness";
+   }
+   real tipClearanceLoss {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "estimated loss due to blade tip clearance, Yk";
+   }
+   real X {  // 1.35 normally, 0.70 for shrouded blades
+      value = 1.35; IOstatus = INPUT; units = NONE;
+      description = "empirical factor defining correction to outlet gas angle";
+   }
+   real Yp {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "profile loss for the blade at incidence";
+   }
+   real YpBetaEqAlpha {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "profile loss for a blade with an entrance blade angle equal to exit flow angle";
+   }
+   real YpBetaEqZero {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "profile loss for a blade with an entrance blade angle equal to zero";
+   }
+   real YpZeroInc {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "profile loss occuring at zero incidence angle";
+   }
+   real Yk {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "tip clearance loss for the blade";
+   }
+   real Ys {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "secondary loss for the blade";
+   }
+   real Yt {
+      value = 0.0; IOstatus = OUTPUT; units = NONE;
+      description = "total non-dimensional loss for the blade segment";
+   }
+   int firstPass = TRUE;
+   int shroudSeal {
+      value = 0; IOstatus = INPUT; units = NONE;
+      description = "adjustment to tip clearance loss constant B if the row has a shroud seal";
+   }
+
+
+
+   //-------------------------------------------------------------------------
+   //               TABLES OF GRAPHS FROM AINLEY & MATHIESON
+   //-------------------------------------------------------------------------
+
+   // Ainley and Mathieson, Figure 4 Nozzle Blades
+   // profile loss for zero blade inlet angle (nozzle blade) versus pitch-to-
+   // chord ratio and outlet gas flow angle
+   Table TB_YpNozzle( real OGA, real PCR ) {
+      OGA = 0.69813 {  // 40 degrees
+         PCR = {   0.20,   0.30,   0.40,   0.50,   0.60,   0.70,   0.80,
+                   0.90,   1.00,   1.10,   1.20 }
+         loss= { 0.0752, 0.0616, 0.0481, 0.0371, 0.0287, 0.0226, 0.0194,
+                 0.0175, 0.0169, 0.0180, 0.0192 }
+      }
+      OGA = 0.87266 {  // 50 degrees
+         PCR = *;
+         loss= { 0.0773, 0.0643, 0.0513, 0.0383, 0.0300, 0.0241, 0.0202,
+                 0.0192, 0.0200, 0.0236, 0.0273 }
+      }
+      OGA = 1.04720 {  // 60 degrees
+         PCR = *;
+         loss= { 0.0813, 0.0667, 0.0522, 0.0416, 0.0328, 0.0268, 0.0232,
+                 0.0233, 0.0268, 0.0331, 0.0395 }
+      }
+      OGA = 1.13446 {  // 65 degrees
+         PCR = *;
+         loss= { 0.0814, 0.0678, 0.0543, 0.0443, 0.0366, 0.0306, 0.0287,
+                 0.0304, 0.0350, 0.0428, 0.0505 }
+      }
+      OGA = 1.22173 {  // 70 degrees
+         PCR = *;
+         loss= { 0.0801, 0.0685, 0.0570, 0.0471, 0.0397, 0.0364, 0.0376,
+                 0.0421, 0.0484, 0.0579, 0.0676 }
+      }
+      OGA = 1.30900 {  // 75 degrees
+         PCR = {   0.40,   0.50,   0.60,   0.70,   0.80,   0.90,   1.00 }
+         loss= { 0.0580, 0.0509, 0.0476, 0.0474, 0.0506, 0.0561, 0.0630 }
+      }
+      OGA = 1.39626 {  // 80 degrees
+         PCR = {   0.40,   0.50,   0.60,   0.70,   0.80,   0.90,   1.00 }
+         loss= { 0.0631, 0.0585, 0.0573, 0.0594, 0.0639, 0.0716, 0.0794 }
+      }
+   }
+
+
+   // Ainley and Mathieson, Figure 4 Impulse Blades
+   // profile loss for blade inlet angle equal to exit flow angle (impulse
+   // blade) versus pitch-to-chord ratio and outlet gas flow angle
+   Table TB_YpImpulse( real OGA, real PCR ) {
+      OGA = 0.69813 {  // 40 degrees
+         PCR = {   0.30,   0.40,   0.50,   0.60,   0.70,   0.80,   0.90,   1.00,   1.10 }
+         loss= { 0.1434, 0.1089, 0.0879, 0.0745, 0.0677, 0.0659, 0.0684, 0.0745, 0.0812 }
+      }
+      OGA = 0.87266 {  // 50 degrees
+         PCR = *;
+         loss= { 0.1388, 0.1123, 0.0922, 0.0802, 0.0740, 0.0742, 0.0791, 0.0879, 0.0976 }
+      }
+      OGA = 0.95993 {  // 55 degrees
+         PCR = *;
+         loss= { 0.1433, 0.1167, 0.0985, 0.0894, 0.0858, 0.0876, 0.0931, 0.1029, 0.1144 }
+      }
+      OGA = 1.04720 {  // 60 degrees
+         PCR = *;
+         loss= { 0.1463, 0.1212, 0.1072, 0.1030, 0.1036, 0.1080, 0.1150, 0.1245, 0.1342 }
+      }
+      OGA = 1.13446 {  // 65 degrees
+         PCR = *;
+         loss= { 0.1561, 0.1329, 0.1208, 0.1161, 0.1195, 0.1284, 0.1396, 0.1516, 0.1634 }
+      }
+      OGA = 1.22173 {  // 70 degrees
+         PCR = *;
+         loss= { 0.1603, 0.1450, 0.1371, 0.1395, 0.1496, 0.1615, 0.1748, 0.1899, 0.2051 }
+      }
+   }
+
+
+   // Ainley and Mathieson, Figure 7
+   // ratio of outlet gas angle to the outlet gas angle occuring at a
+   // pitch-to-chord ratio of 0.75 as a function of pitch-to-chord ratio
+   Table TB_alphaRatio( real PCR ) {
+      PCR =    {  0.40,  0.50,  0.60,  0.70,  0.75,  0.80,  0.90,  1.00 }
+      alphaR = { 1.120, 1.075, 1.050, 1.025, 1.000, 0.975, 0.940, 0.900 }
+   }
+
+
+   // Ainley and Mathieson, Figure 7a
+   // delta between stalling incidence and the stalling incidence occuring
+   // at a pitch-to-chord ratio of 0.75 as a function of pitch-to-chord ratio
+   // NOTE: is this alpha or alpha at s/c 0.75 ?
+   Table TB_iStallDelta( real alpha2, real PCR ) {
+      alpha2 = 0.69813 {  // 40 degrees
+         PCR =    {  0.40,  0.50,  0.60,  0.70,  0.75,  0.80,  0.90,  1.00 }
+       //deltaI = {  8.00,  7.00,  4.50,  1.50,  0.00, -2.50, -4.50, -6.50 }
+         deltaI = { 0.13963,0.12217,0.07854,0.02618,0.00000,-0.04363,-0.07854,-0.11345 }
+      }
+      alpha2 = 0.87266 {  // 50 degrees
+         PCR =    {  0.40,  0.50,  0.60,  0.70,  0.75,  0.80,  0.90,  1.00 }
+       //deltaI = {  8.00,  7.00,  4.50,  1.50,  0.00, -2.50, -7.00, -11.0 }
+         deltaI = { 0.13963,0.12217,0.07854,0.02618,0.00000,-0.04363,-0.12217,-0.19199 }
+      }
+      alpha2 = 1.04720 {  // 60 degrees
+         PCR =    {  0.40,  0.50,  0.60,  0.70,  0.75,  0.80,  0.90,  1.00 }
+       //deltaI = {  8.00,  7.00,  4.50,  1.50,  0.00, -2.50, -8.00, -15.0 }
+         deltaI = { 0.13963,0.12217,0.07854,0.02618,0.00000,-0.04363,-0.13963,-0.26180 }
+      }
+   }
+
+
+   // Ainley and Mathieson, Figure 7b
+   // stalling incidence occuring at a pitch-to-chord ratio of 0.75 as a
+   // function of the ratio of blade inlet angle to outlet gas angle
+   // occuring at a pitch-to-chord ratio of 0.75
+   Table TB_iStallRef( real alpha2, real B1A2 ) {
+      alpha2 = 0.52360 {  // 30 degrees
+       //B1A2 =  { -1.20, -0.80, -0.40,  0.00,  0.40,  0.80,  1.00 }
+         B1A2 =  {  1.20,  0.80,  0.40,  0.00, -0.40, -0.80, -1.00 }
+       //Isref = {   0.0,   5.0,   8.0,  10.0,  11.0,  12.0,  12.5 }
+         Isref = { 0.00000, 0.08727, 0.13963, 0.17453, 0.19199, 0.20944, 0.21817 }
+      }
+      alpha2 = 0.69813 {  // 40 degrees
+         B1A2 = *;
+       //Isref = {   0.0,   7.5,  11.0,  13.5,  16.0,  18.0,  19.0 }
+         Isref = { 0.00000, 0.13090, 0.10199, 0.23562, 0.27925, 0.31416, 0.33161 }
+      }
+      alpha2 = 0.87266 {  // 50 degrees
+         B1A2 = *;
+       //Isref = {   0.0,   9.0,  14.5,  19.0,  21.5,  20.5,  20.0 }
+         Isref = { 0.00000, 0.15708, 0.25307, 0.33161, 0.37525, 0.35779, 0.34907 }
+      }
+      alpha2 = 0.95993 {  // 55 degrees
+         B1A2 = *;
+       //Isref = {   0.0,  10.0,  18.0,  23.5,  26.0,  22.0,  20.0 }
+         Isref = { 0.00000, 0.17453, 0.31416, 0.41015, 0.45379, 0.38397, 0.34907 }
+      }
+      alpha2 = 1.04720 {  // 60 degrees
+         B1A2 = *;
+       //Isref = {   0.0,  12.0,  22.5,  29.0,  30.0,  24.0,  20.0 }
+         Isref = { 0.00000, 0.20944, 0.39270, 0.50615, 0.52360, 0.41888, 0.34907 }
+      }
+      alpha2 = 1.13446 {  // 65 degrees
+         B1A2 = *;
+       //Isref = {   0.0,  14.0,  28.5,  37.5,  35.0,  25.0,  20.0 }
+         Isref = { 0.00000, 0.24435, 0.49742, 0.65450, 0.61087, 0.43633, 0.34907 }
+      }
+      alpha2 = 1.22173 {  // 70 degrees
+         B1A2 = *;
+       //Isref = {   0.0,  17.0,  33.0,  44.5,  40.5,  27.0,  20.0 }
+         Isref = { 0.00000, 0.29671, 0.57596, 0.77667, 0.70686, 0.47124, 0.34907 }
+      }
+   }
+
+
+   // Ainley and Mathieson, Figure 6
+   // ratio of profile loss to zero incidence profile loss as a function
+   // of ratio of incidence to stalling incidence
+   Table TB_YpRatio( real IqIs ) {
+    //IqIs =    { -5.0, -4.0, -3.0, -2.0, -1.0, -0.5,  0.0,  0.5,  1.0,  2.0 }
+    //YpRatio = { 8.00, 6.20, 4.25, 2.75, 1.55, 1.25, 1.00, 1.20, 2.00, 8.00 }
+      IqIs =    { -5.0, -4.0, -3.0, -1.5, -0.8,  0.0,  0.5,  1.0,  1.5,  2.0 }
+      YpRatio = { 8.00, 6.20, 4.28, 2.10, 1.39, 1.00, 1.20, 2.00, 4.48, 8.00 }
+   }
+
+
+   // Ainley and Mathieson, Figure 8
+   Table TB_SecondaryLoss( real areaParam ) {
+      areaParam = {   0.00,    0.05,    0.10,    0.15,    0.20,    0.25,    0.30,
+                      0.35,    0.40,    0.45,    0.50 }
+      Secloss =  { 0.00576, 0.00596, 0.00632, 0.00719, 0.00862, 0.01059, 0.01297,
+                   0.01588, 0.01925, 0.02314, 0.02742 }
+   }
+
+
+   // Ainley and Mathieson, Figure 9
+   Table TB_LossCorrection( real TEthick ) {
+      TEthick    = {  0.00,   0.02,   0.04,   0.06,   0.08,   0.10,   0.12 }
+      lossFactor = { 0.926,  1.000,  1.116,  1.246,  1.384,  1.534,  1.686 }
+   }
+
+
+   //-------------------------------------------------------------------------
+   //              ++++++++++  PERFORM CALCULATIONS  ++++++++++
+   //-------------------------------------------------------------------------
+   void calculate() {
+
+
+      real b, lossTerm;
+      real areaThroat1, areaThroat2;
+
+      //---------------------------------------------------
+      // calculate some geometric parameters
+      //---------------------------------------------------
+      angle_oqs = acos( opening / pitch );
+
+
+      real Ak = 2.*PI*tipClearance * Fl_OR.radiusOuter;
+
+
+      //----------------------------------------------------------------------
+      //                EXIT FLOW ANGLE AND DEVIATION
+      //----------------------------------------------------------------------
+      // TODO: there is an implied sign convention in this section
+
+      //---------------------------------------------------
+      // calculate flow angle for blades with zero tip clearance
+      //---------------------------------------------------
+      bladeAngle = angle_oqs;
+
+      // Figure 5 equation: alpha* = f( cos(o/s) )
+      flowAngleStar = ( 15.2/13.1 )*bladeAngle - C_DEGtoRAD*11.97;
+
+      flowAngleSubsonic = flowAngleStar + C_DEGtoRAD*4.*(pitch/bladeRc);
+      areaThroat1 = Fl_OR.area*cos( angle_oqs );
+      flowAngleSonic = angle_oqs;
+
+      // if flared annulus walls
+      // real areaThroatFlared = (opening/pitch)*(5.*Fl_OR.area + Fl_IR.area)/6.;
+      // flowAngleSonic = acos( areaThroatFlared / Fl_OR.area );
+
+
+      // linearly interpolate to get deviation based on exit MN
+      b = 2.*flowAngleSubsonic - flowAngleSonic;
+      if ( Fl_OR.MNrel <= 0.5 ) {
+         flowAngle = flowAngleSubsonic;
+      }
+      else if ( Fl_OR.MNrel > 1.0 ) {
+         flowAngle = flowAngleSonic;
+      }
+      else {
+         flowAngle = 2.*(flowAngleSonic - flowAngleSubsonic)*Fl_OR.MNrel + b;
+      }
+
+      // set angles used in loss correlations
+      alpha2 = flowAngle;
+      beta1 = bladeInletAngle;
+
+
+      //---------------------------------------------------
+      // calculate flow angle for blades with tip clearance
+      //---------------------------------------------------
+      real kqh = tipClearanceToBladeHeight;
+      real term2 = X*kqh*cos(beta1)/cos(flowAngleSubsonic);
+
+      // calculate alpha for outlet MN = 0.5 or less
+      flowAngleSubsonicTC = atan( (1.-term2)*tan(flowAngleSubsonic)
+                  - term2*tan(beta1) );
+
+
+      // calculate alpha for outlet MN = 1.0
+      areaThroat2 = areaThroat1*(1.- kqh) + Ak;
+      // if shrouded blade row
+      // areaThroat2 = areaThroat1 + Ak;
+      flowAngleSonicTC = acos( areaThroat2 / Fl_OR.area );
+
+
+      // linearly interpolate to get deviation based on exit MN
+      b = 2.*flowAngleSubsonicTC - flowAngleSonicTC;
+      if ( Fl_OR.MNrel <= 0.5 ) {
+         flowAngle = flowAngleSubsonicTC;
+      }
+      else if ( Fl_OR.MNrel > 1.0 ) {
+         flowAngle = flowAngleSonicTC;
+      }
+      else {
+         flowAngle = 2.*(flowAngleSonicTC - flowAngleSubsonicTC)*Fl_OR.MNrel + b;
+      }
+
+
+      // set deviation in parent based on the estimated flow angle
+      deviation_in = bladeAngle - flowAngle;
+
+
+
+      //----------------------------------------------------------------------
+      //                         PROFILE LOSS
+      //----------------------------------------------------------------------
+      // note: validity for impulse-like blades restricted to t/c between 15-25%
+      // also: if t/c > 0.25 use 0.25 and if < 0.15 use 0.15
+      real TqC = thicknessToChord;  // use local value to avoid changing parent value
+      if (thicknessToChord > 0.25) { TqC = 0.25; }
+      if (thicknessToChord < 0.15) { TqC = 0.15; }
+
+      YpBetaEqZero = TB_YpNozzle( alpha2, pitchToChord );
+      YpBetaEqAlpha = TB_YpImpulse( alpha2, pitchToChord );
+
+      // profile loss at zero incidence
+      YpZeroInc = ( YpBetaEqZero + (beta1/alpha2)**2. *(YpBetaEqAlpha - YpBetaEqZero) )
+                * ( TqC/0.20 )**(beta1/alpha2);
+
+
+      // stalling incidence, table is alpha/alphaRef
+      alphaRef = alpha2 / TB_alphaRatio( pitchToChord );
+      iStallRef = TB_iStallRef( alphaRef, beta1/alphaRef );
+      iStallDelta = TB_iStallDelta( alpha2, pitchToChord );  // alphaRef ?
+      iStall = iStallRef + iStallDelta;
+
+
+      Yp = YpZeroInc * TB_YpRatio( incidence/iStall );
+
+      // added as a hack to fix convergence errors occuring for
+      // stator blade rows with design incidence - ESH 6/14/13
+      if ( Yp > 0.7 ) { Yp = 0.7; }
+
+
+      //----------------------------------------------------------------------
+      //                SECONDARY LOSS AND TIP CLEARANCE LOSS
+      //----------------------------------------------------------------------
+      alphaMean = atan( 0.5*( tan(Fl_IR.beta) + tan(alpha2) ) );
+      liftCoeff = 2. * cos(alphaMean) * ( -tan(Fl_IR.beta) + tan(alpha2) );
+      lossTerm = ( liftCoeff**2. ) * ( cos(alpha2) )**2. / ( cos(alphaMean) )**3.;
+
+      // secondary loss
+      real area1 = Fl_IR.area * cos( beta1 );
+      real area2 = Fl_OR.area * cos( alpha2 );
+      real argTerm = ( area2/area1 )**2. / (1. + radiusHubExit/radiusTipExit );
+      lambda = TB_SecondaryLoss( argTerm );
+
+      Ys = lambda * lossTerm;
+
+
+      // tip clearance loss
+      B = 0.50;
+      if ( shroudSeal == TRUE ) { B = 0.25; }
+      Yk = B * kqh * lossTerm;
+
+      // debug stuff
+      // Ainley-Mathieson set limits on Ys and Yk equal to the value they had
+      // at the i/iStall limit, but there's no way to know a priori what that
+      // value is; so just use values from their paper
+      if ( switchRotate == "ROTATING" ) {
+         if ( incidence/iStall < -1.5 || incidence/iStall > 1.0 ) { 
+            if ( incidence/iStall < -1.5 ) { 
+               Ys = 0.1178/2.;
+               Yk = 0.1178/2.;
+            } 
+            if ( incidence/iStall > 1.0 ) { 
+               Ys = 0.2186/2.;
+               Yk = 0.2186/2.;
+            } 
+         }
+      }
+
+      //----------------------------------------------------------------------
+      //                     TOTAL LOSS CALCULATION
+      //----------------------------------------------------------------------
+      profileLoss = Yp;
+      secondaryLoss = Ys;
+      tipClearanceLoss = Yk;
+
+      TEcorrection = TB_LossCorrection( TEthicknessToPitch );
+      Yt = ( Yp + Ys + Yk) * TEcorrection;
+      lossReturned = Yt;
+
+
+   }  // end calculate
+
+}

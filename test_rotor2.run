@@ -1,0 +1,745 @@
+
+//----------------------------------------------------------------------------
+//  Test of a rotating blade row
+//----------------------------------------------------------------------------
+
+
+//---------------------------------------------------------------------------
+//  set thermo package
+//---------------------------------------------------------------------------
+setThermoPackage( "GasTbl" );
+
+
+//---------------------------------------------------------------------------
+//  include OTAC elements and files
+//---------------------------------------------------------------------------
+#include <elements\OTAC.fnc>
+#include <elements\OTACstartAssembly.int>
+#include <elements\ExpanderAssembly.int>
+#include <elements\ReducerAssembly.int>
+#include <elements\BladeSegment.int>
+#include <elements\BladeRow.int>
+#include <elements\BladeGeometry.int>
+#include <elements\OTACLossModel.int>
+
+
+
+
+real designAlpha = 50.0;
+real designRm = 2.75;
+real designRhub = 2.10;
+real axialChord = 0.600;
+
+//---------------------------------------------------------------------------
+//  declare the model elements
+//---------------------------------------------------------------------------
+
+
+//===========================================================================
+//                          FIRST STAGE STREAMLINE
+//===========================================================================
+OTACdefaults { 
+   numberOfStreams = 9;
+}
+designRhub = 2.10;
+OTACstart start { 
+   // set the flow conditions
+   Tt = 518.67;
+   Pt = 14.696; 
+   W = 2.0;
+   MNdes = 0.200;
+
+   // set the expanded OTAC conditions
+   radiusMean_in = 2.6550; //designRm;
+   alpha = 0.*C_DEGtoRAD;
+   phi = 0.0;
+
+} 
+
+
+Expander expander { 
+} 
+
+
+BladeRow rotor1 {
+   setOption( "switchRotate", "ROTATING" );
+   setOption( "switchSpanwiseInput", "CUSTOM" );
+   switchBladeAngleSign = "POSITIVE";
+   switchLossBasis = "PTOTREL";
+
+   radiusMean_in = 2.737; //designRm;
+   dep_DESIGN_Area.eq_lhs = "areaExit";
+   dep_DESIGN_Area.eq_rhs = "16.50";
+   //input_in = designAlpha;
+   custom_in = "turning";
+
+   Table S_INPUTvR( real pctSpan ) {  // PR
+      pctSpan = { 0.0000, 1.0000 } 
+      custom =  { 0.6982, 0.6982 }  // 0.8203
+    //pctSpan = { 0.0000, 1.0000 } 
+    //alpha   = {   55.0,   40.0 } 
+   } 
+
+   numberOfBlades = 28;
+   BladeGeometry S_Geometry { 
+      chord_in = 0.90;
+   }
+
+}
+
+
+BladeRow stator1 {
+   setOption( "switchRotate", "NON_ROTATING" );
+   setOption( "switchSpanwiseInput", "CUSTOM" );
+   switchBladeAngleSign = "NEGATIVE";
+   switchLossBasis = "PTOT";
+
+   radiusMean_in = designRm;
+   dep_DESIGN_Area.eq_lhs = "areaExit";
+   dep_DESIGN_Area.eq_rhs = "16.00";
+   //input_in = 0.0;
+   custom_in = "turning";
+
+   Table S_INPUTvR( real pctSpan ) {  // PR
+      pctSpan = { 0.0000, 1.0000 } 
+      alpha   = {-0.6982,-0.6982 } 
+   } 
+
+   numberOfBlades = 28;
+   BladeGeometry S_Geometry { 
+      chord_in = 0.90;
+   }
+
+}
+
+
+BladeRow rotor2 {
+   setOption( "switchRotate", "ROTATING" );
+   setOption( "switchSpanwiseInput", "CUSTOM" );
+   switchBladeAngleSign = "POSITIVE";
+   switchLossBasis = "PTOTREL";
+
+   radiusMean_in = 2.737; //designRm;
+   dep_DESIGN_Area.eq_lhs = "areaExit";
+   dep_DESIGN_Area.eq_rhs = "15.25";
+   //input_in = designAlpha;
+   custom_in = "turning";
+
+   Table S_INPUTvR( real pctSpan ) {  // PR
+    //pctSpan = { 0.0000, 0.1000, 0.2500, 0.5000, 1.0000 } 
+    //custom =  { 1.2472, 1.2000, 1.0472, 0.9472, 0.8472 }  // 0.8203
+      pctSpan = { 0.0000, 1.0000 } 
+      alpha   = { 0.6982, 0.6982 } 
+   } 
+
+   numberOfBlades = 28;
+   BladeGeometry S_Geometry { 
+      chord_in = 0.90;
+   }
+
+}
+
+
+BladeRow stator2 {
+   setOption( "switchRotate", "NON_ROTATING" );
+   setOption( "switchSpanwiseInput", "CUSTOM" );
+   switchBladeAngleSign = "NEGATIVE";
+   switchLossBasis = "PTOT";
+
+   radiusMean_in = designRm;
+   dep_DESIGN_Area.eq_lhs = "areaExit";
+   dep_DESIGN_Area.eq_rhs = "14.75";
+   //input_in = 0.0;
+   custom_in = "turning";
+
+   Table S_INPUTvR( real pctSpan ) {  // PR
+      pctSpan = { 0.0000, 1.0000 } 
+      alpha   = {-0.6982,-0.6982 } 
+   } 
+
+   numberOfBlades = 28;
+   BladeGeometry S_Geometry { 
+      chord_in = 0.90;
+   }
+
+}
+
+
+BladeRow rotor3 {
+   setOption( "switchRotate", "ROTATING" );
+   setOption( "switchSpanwiseInput", "CUSTOM" );
+   switchBladeAngleSign = "POSITIVE";
+   switchLossBasis = "PTOTREL";
+
+   radiusMean_in = 2.700; //designRm;
+   dep_DESIGN_Area.eq_lhs = "areaExit";
+   dep_DESIGN_Area.eq_rhs = "14.00";
+   //input_in = designAlpha;
+   custom_in = "turning";
+
+   Table S_INPUTvR( real pctSpan ) {  // PR
+      pctSpan = { 0.0000, 1.0000 } 
+      alpha   = { 0.6982, 0.6982 } 
+   } 
+
+   numberOfBlades = 28;
+   BladeGeometry S_Geometry { 
+      chord_in = 0.90;
+   }
+
+}
+
+
+BladeRow stator3 {
+   setOption( "switchRotate", "NON_ROTATING" );
+   setOption( "switchSpanwiseInput", "CUSTOM" );
+   switchBladeAngleSign = "NEGATIVE";
+   switchLossBasis = "PTOT";
+
+   radiusMean_in = designRm;
+   dep_DESIGN_Area.eq_lhs = "areaExit";
+   dep_DESIGN_Area.eq_rhs = "13.50";
+   //input_in = 0.0;
+   custom_in = "turning";
+
+   Table S_INPUTvR( real pctSpan ) {  // PR
+      pctSpan = { 0.0000, 1.0000 } 
+      alpha   = {-0.6982,-0.6982 } 
+   } 
+
+   numberOfBlades = 28;
+   BladeGeometry S_Geometry { 
+      chord_in = 0.90;
+   }
+
+}
+
+
+Shaft rotorShaft {
+   ShaftInputPort Sh_R1, Sh_R2, Sh_R3;
+   Nmech = 10000.0; //29766.5;
+
+   // Ns = N*sqrt(Q)/(gc*H)**0.75
+   // N = RPM/60  = rev/s
+   // Q = flow rate mdot/rho, ft^3/s   lbm/s/(lbm/ft^3)
+   // gc = 32.2 lbm ft/(lbf-s^2)
+   // H = adiabatic head, lbf-ft/lbm
+   //   rev  ft(3/2)   s(6/4)
+   //    s    s(1/2)  ft(6/4)
+   real Ns, Nm, Q, head, area, e7, e8, e9;
+   void postexecute() {
+      Nm = rotorShaft.Nmech;  // RPM
+      Q = start.Fl_O.W / start.Fl_O.rhos; // cfs, ft^3/s
+      head = (rotor1.Fl_O5.ht - start.Fl_O.ht)*25037.;  // 0.432781 psi/ft 2.31064 ft/psi
+//    Ns = (Nm/60.)*sqrt(Q)/(head**0.75);
+//    Ns = Nm*sqrt(Q)/((head/32.174)**0.75);
+
+  //  Ns = (rotor1.bladeSegment_5.flowCoefficient)**0.5 / 
+  //       (rotor1.bladeSegment_5.loadingCoefficient)**0.75;
+      area = start.Fl_O.area;  // sq in
+      e7 = Nm*(area*start.Fl_O.Vm/144.)**0.5;    // rev/min sqrt(ft^3/s)
+      e8 = rotor1.Fl_O5.Tt;
+      head = 778.1*start.Fl_O.Cps*(e8 - start.Fl_O.Tt)*32.174;  // ft^2/s^2
+      e9 = (778.1*start.Fl_O.Cps*(e8 - start.Fl_O.Tt) )**0.75;
+      Ns = e7/e9;
+
+   }
+}
+
+
+Reducer reducer { 
+}
+
+
+FlowEnd end { }
+
+
+//----------------------------------------------------------------
+//  link everything together
+//----------------------------------------------------------------
+linkPorts( "start.Fl_O",  "expander.Fl_I", "link0" );
+linkSegmentPorts( "expander",   "rotor1",    "station1" );
+linkSegmentPorts( "rotor1",     "stator1",   "station2" );
+linkSegmentPorts( "stator1",    "rotor2",    "station3" );
+linkSegmentPorts( "rotor2",     "stator2",   "station4" );
+linkSegmentPorts( "stator2",    "rotor3",    "station5" );
+linkSegmentPorts( "rotor3",     "stator3",   "station6" );
+linkSegmentPorts( "stator3",    "reducer",   "station7" );
+linkPorts( "reducer.Fl_O", "end.Fl_I",  "fsend" );
+linkPorts( "rotor1.Sh_O", "rotorShaft.Sh_R1", "link_R1" );
+linkPorts( "rotor2.Sh_O", "rotorShaft.Sh_R2", "link_R2" );
+linkPorts( "rotor3.Sh_O", "rotorShaft.Sh_R3", "link_R3" );
+//===========================================================================
+//                      END OF FIRST STAGE STREAMLINE
+//===========================================================================
+
+
+
+/*
+//===========================================================================
+//                          THREE STAGE MEANLINE
+//===========================================================================
+OTACdefaults { 
+   numberOfStreams = 1;
+} 
+
+OTACstart start { 
+   // set the flow conditions
+   Tt = 518.67;
+   Pt = 14.696; 
+   W = 4.0;
+   MNdes = 0.500;
+
+   // set the expanded OTAC conditions
+   radiusMean_in = designRm;
+   alpha = 0.*C_DEGtoRAD;
+   phi = 0.0;
+} 
+
+
+Expander expander { 
+   void postexecute() {
+      rotor1.S_Geometry.chord_in = axialChord/cos(rotor1.bladeSegment_1.turning/2.);
+      rotor2.S_Geometry.chord_in = axialChord/cos(rotor1.bladeSegment_1.turning/2.);
+      rotor3.S_Geometry.chord_in = axialChord/cos(rotor1.bladeSegment_1.turning/2.);
+      stator1.S_Geometry.chord_in= axialChord/cos(stator1.bladeSegment_1.turning/2.);
+      stator1.S_Geometry.chord_in= axialChord/cos(stator1.bladeSegment_1.turning/2.);
+      stator1.S_Geometry.chord_in= axialChord/cos(stator1.bladeSegment_1.turning/2.);
+   }
+} 
+
+
+BladeRow rotor1 {
+   setOption( "switchRotate", "ROTATING" );
+   setOption( "switchSpanwiseInput", "ALPHA" );
+   switchBladeAngleSign = "POSITIVE";
+   switchLossBasis = "PTOTREL";
+
+   radiusMean_in = designRm;
+   dep_DESIGN_Area.eq_lhs = "Fl_O1.Vm";
+   dep_DESIGN_Area.eq_rhs = "Fl_I1.Vm";
+   //dep_DESIGN_Area.eq_lhs = "areaExit"; //"Fl_O1.Vm";
+   //dep_DESIGN_Area.eq_rhs = "34.00"; // "Fl_I1.Vm";
+   input_in = designAlpha;
+   //custom_in = "diffusionFactor";
+
+   //Table S_INPUTvR( real pctSpan ) {  // PR
+   //   pctSpan = { 0.0000, 0.5000, 1.0000 } 
+      //pr =      { 1.400,  1.500, 1.600 }
+   //   alpha   = { 50.,    50.,    50. } 
+      //df =      { 0.500,  0.600, 0.600 }
+   //} 
+
+   numberOfBlades = 28;
+   BladeGeometry S_Geometry { 
+      chord_in = 1.5;
+   }
+
+}
+
+
+BladeRow stator1 {
+   setOption( "switchRotate", "NON_ROTATING" );
+   setOption( "switchSpanwiseInput", "ALPHA" );
+   switchBladeAngleSign = "NEGATIVE";
+   switchLossBasis = "PTOT";
+
+   radiusMean_in = designRm;
+   dep_DESIGN_Area.eq_lhs = "Fl_O1.Vm";
+   dep_DESIGN_Area.eq_rhs = "Fl_I1.Vm";
+   //dep_DESIGN_Area.eq_lhs = "areaExit"; //"Fl_O1.Vm";
+   //dep_DESIGN_Area.eq_rhs = "34.0"; //"Fl_I1.Vm";
+   //input_in = 0.0;
+
+   Table S_INPUTvR( real pctSpan ) {  // PR
+      pctSpan = { 0.0000, 0.5000, 1.0000 } 
+      alpha   = {  0.,     0.,     0. } 
+   } 
+
+   numberOfBlades = 25;
+   BladeGeometry S_Geometry { 
+      chord_in = 1.5;
+   }
+
+}
+
+
+BladeRow rotor2 {
+   setOption( "switchRotate", "ROTATING" );
+   setOption( "switchSpanwiseInput", "ALPHA" );
+   switchBladeAngleSign = "POSITIVE";
+   switchLossBasis = "PTOTREL";
+
+   radiusMean_in = designRm;
+   dep_DESIGN_Area.eq_lhs = "Fl_O1.Vm";
+   dep_DESIGN_Area.eq_rhs = "Fl_I1.Vm";
+   //dep_DESIGN_Area.eq_lhs = "areaExit"; //"Fl_O1.Vm";
+   //dep_DESIGN_Area.eq_rhs = "30.0"; //"Fl_I1.Vm";
+   //input_in = designAlpha;
+
+   Table S_INPUTvR( real pctSpan ) {  // PR
+      pctSpan = { 0.0000, 0.5000, 1.0000 } 
+      alpha   = { 50.,    50.,    50. } 
+   } 
+
+   numberOfBlades = 25;
+   BladeGeometry S_Geometry { 
+      chord_in = 1.5;
+   }
+
+}
+
+
+BladeRow stator2 {
+   setOption( "switchRotate", "NON_ROTATING" );
+   setOption( "switchSpanwiseInput", "ALPHA" );
+   switchBladeAngleSign = "NEGATIVE";
+   switchLossBasis = "PTOT";
+
+   radiusMean_in = designRm;
+   dep_DESIGN_Area.eq_lhs = "Fl_O1.Vm";
+   dep_DESIGN_Area.eq_rhs = "Fl_I1.Vm";
+   //dep_DESIGN_Area.eq_lhs = "areaExit"; //"Fl_O1.Vm";
+   //dep_DESIGN_Area.eq_rhs = "30.0";  //"Fl_I1.Vm";
+   //input_in = 0.0;
+
+   Table S_INPUTvR( real pctSpan ) {  // PR
+      pctSpan = { 0.0000, 0.5000, 1.0000 } 
+      alpha   = {  0.,     0.,     0. } 
+   } 
+
+   numberOfBlades = 25;
+   BladeGeometry S_Geometry { 
+      chord_in = 1.5;
+   }
+
+}
+
+BladeRow rotor3 {
+   setOption( "switchRotate", "ROTATING" );
+   setOption( "switchSpanwiseInput", "ALPHA" );
+   switchBladeAngleSign = "POSITIVE";
+   switchLossBasis = "PTOTREL";
+
+   radiusMean_in = designRm;
+   dep_DESIGN_Area.eq_lhs = "Fl_O1.Vm";
+   dep_DESIGN_Area.eq_rhs = "Fl_I1.Vm";
+   //dep_DESIGN_Area.eq_lhs = "areaExit"; //"Fl_O1.Vm";
+   //dep_DESIGN_Area.eq_rhs = "27.0"; //"Fl_I1.Vm";
+   //input_in = designAlpha;
+
+   Table S_INPUTvR( real pctSpan ) {  // PR
+      pctSpan = { 0.0000, 0.5000, 1.0000 } 
+      alpha   = { 50.,    50.,    50. } 
+   } 
+
+   numberOfBlades = 25;
+   BladeGeometry S_Geometry { 
+      chord_in = 1.5;
+   }
+
+}
+
+
+BladeRow stator3 {
+   setOption( "switchRotate", "NON_ROTATING" );
+   setOption( "switchSpanwiseInput", "ALPHA" );
+   switchBladeAngleSign = "NEGATIVE";
+   switchLossBasis = "PTOT";
+
+   radiusMean_in = designRm;
+   dep_DESIGN_Area.eq_lhs = "Fl_O1.Vm";
+   dep_DESIGN_Area.eq_rhs = "Fl_I1.Vm";
+   //dep_DESIGN_Area.eq_lhs = "areaExit"; //"Fl_O1.Vm";
+   //dep_DESIGN_Area.eq_rhs = "27.0"; //"Fl_I1.Vm";
+   //input_in = 0.0;
+
+   Table S_INPUTvR( real pctSpan ) {  // PR
+      pctSpan = { 0.0000, 0.5000, 1.0000 } 
+      alpha   = {  0.,     0.,     0. } 
+   } 
+
+   numberOfBlades = 25;
+   BladeGeometry S_Geometry { 
+      chord_in = 1.5;
+   }
+
+}
+
+
+Shaft rotorShaft {
+   ShaftInputPort Sh_R1, Sh_R2, Sh_R3;
+   Nmech = 10000.0; //29766.5;  // 35670.8 beta = 55 deg ; 24978.7 beta = 45 deg
+}
+
+
+Reducer reducer { 
+}
+
+
+FlowEnd end { }
+
+
+//----------------------------------------------------------------
+//  link everything together
+//----------------------------------------------------------------
+linkPorts( "start.Fl_O",  "expander.Fl_I", "link0" );
+linkSegmentPorts( "expander",   "rotor1",    "station1" );
+linkSegmentPorts( "rotor1",     "stator1",   "station2" );
+linkSegmentPorts( "stator1",    "rotor2",    "station3" );
+linkSegmentPorts( "rotor2",     "stator2",   "station4" );
+linkSegmentPorts( "stator2",    "rotor3",    "station5" );
+linkSegmentPorts( "rotor3",     "stator3",   "station6" );
+linkSegmentPorts( "stator3",    "reducer",   "station7" );
+
+linkPorts( "reducer.Fl_O", "end.Fl_I",  "fsend" );
+linkPorts( "rotor1.Sh_O", "rotorShaft.Sh_R1", "link_R1" );
+linkPorts( "rotor2.Sh_O", "rotorShaft.Sh_R2", "link_R2" );
+linkPorts( "rotor3.Sh_O", "rotorShaft.Sh_R3", "link_R3" );
+//===========================================================================
+//                      END OF THREE STAGE MEANLINE
+//===========================================================================
+*/
+
+
+//----------------------------------------------------------------
+//  add the loss models to rows
+//----------------------------------------------------------------
+rotor1.addSubelementToStack( "OTACLossModel", "rotorLoss" );
+stator1.addSubelementToStack( "OTACLossModel", "statorLoss" );
+
+rotor2.addSubelementToStack( "OTACLossModel", "rotorLoss" );
+stator2.addSubelementToStack( "OTACLossModel", "statorLoss" );
+
+rotor3.addSubelementToStack( "OTACLossModel", "rotorLoss" );
+stator3.addSubelementToStack( "OTACLossModel", "statorLoss" );
+
+/*
+rotor1.bladeSegment_1.rotorLoss.lossReturned = 0.08;
+stator1.bladeSegment_1.statorLoss.lossReturned = 0.07;
+rotor2.bladeSegment_1.rotorLoss.lossReturned = 0.08;
+stator2.bladeSegment_1.statorLoss.lossReturned = 0.07;
+rotor3.bladeSegment_1.rotorLoss.lossReturned = 0.08;
+stator3.bladeSegment_1.statorLoss.lossReturned = 0.07;
+*/
+
+rotor1.bladeSegment_1.rotorLoss.lossReturned = 0.08;
+rotor1.bladeSegment_2.rotorLoss.lossReturned = 0.08;
+rotor1.bladeSegment_3.rotorLoss.lossReturned = 0.08;
+rotor1.bladeSegment_4.rotorLoss.lossReturned = 0.08;
+rotor1.bladeSegment_5.rotorLoss.lossReturned = 0.08;
+rotor1.bladeSegment_6.rotorLoss.lossReturned = 0.08;
+rotor1.bladeSegment_7.rotorLoss.lossReturned = 0.08;
+rotor1.bladeSegment_8.rotorLoss.lossReturned = 0.08;
+rotor1.bladeSegment_9.rotorLoss.lossReturned = 0.08;
+
+stator1.bladeSegment_1.statorLoss.lossReturned = 0.07;
+stator1.bladeSegment_2.statorLoss.lossReturned = 0.07;
+stator1.bladeSegment_3.statorLoss.lossReturned = 0.07;
+stator1.bladeSegment_4.statorLoss.lossReturned = 0.07;
+stator1.bladeSegment_5.statorLoss.lossReturned = 0.07;
+stator1.bladeSegment_6.statorLoss.lossReturned = 0.07;
+stator1.bladeSegment_7.statorLoss.lossReturned = 0.07;
+stator1.bladeSegment_8.statorLoss.lossReturned = 0.07;
+stator1.bladeSegment_9.statorLoss.lossReturned = 0.07;
+
+rotor2.bladeSegment_1.rotorLoss.lossReturned = 0.08;
+rotor2.bladeSegment_2.rotorLoss.lossReturned = 0.08;
+rotor2.bladeSegment_3.rotorLoss.lossReturned = 0.08;
+rotor2.bladeSegment_4.rotorLoss.lossReturned = 0.08;
+rotor2.bladeSegment_5.rotorLoss.lossReturned = 0.08;
+rotor2.bladeSegment_6.rotorLoss.lossReturned = 0.08;
+rotor2.bladeSegment_7.rotorLoss.lossReturned = 0.08;
+rotor2.bladeSegment_8.rotorLoss.lossReturned = 0.08;
+rotor2.bladeSegment_9.rotorLoss.lossReturned = 0.08;
+stator2.bladeSegment_1.statorLoss.lossReturned = 0.07;
+stator2.bladeSegment_2.statorLoss.lossReturned = 0.07;
+stator2.bladeSegment_3.statorLoss.lossReturned = 0.07;
+stator2.bladeSegment_4.statorLoss.lossReturned = 0.07;
+stator2.bladeSegment_5.statorLoss.lossReturned = 0.07;
+stator2.bladeSegment_6.statorLoss.lossReturned = 0.07;
+stator2.bladeSegment_7.statorLoss.lossReturned = 0.07;
+stator2.bladeSegment_8.statorLoss.lossReturned = 0.07;
+stator2.bladeSegment_9.statorLoss.lossReturned = 0.07;
+
+rotor3.bladeSegment_1.rotorLoss.lossReturned = 0.08;
+rotor3.bladeSegment_2.rotorLoss.lossReturned = 0.08;
+rotor3.bladeSegment_3.rotorLoss.lossReturned = 0.08;
+rotor3.bladeSegment_4.rotorLoss.lossReturned = 0.08;
+rotor3.bladeSegment_5.rotorLoss.lossReturned = 0.08;
+rotor3.bladeSegment_6.rotorLoss.lossReturned = 0.08;
+rotor3.bladeSegment_7.rotorLoss.lossReturned = 0.08;
+rotor3.bladeSegment_8.rotorLoss.lossReturned = 0.08;
+rotor3.bladeSegment_9.rotorLoss.lossReturned = 0.08;
+stator3.bladeSegment_1.statorLoss.lossReturned = 0.07;
+stator3.bladeSegment_2.statorLoss.lossReturned = 0.07;
+stator3.bladeSegment_3.statorLoss.lossReturned = 0.07;
+stator3.bladeSegment_4.statorLoss.lossReturned = 0.07;
+stator3.bladeSegment_5.statorLoss.lossReturned = 0.07;
+stator3.bladeSegment_6.statorLoss.lossReturned = 0.07;
+stator3.bladeSegment_7.statorLoss.lossReturned = 0.07;
+stator3.bladeSegment_8.statorLoss.lossReturned = 0.07;
+stator3.bladeSegment_9.statorLoss.lossReturned = 0.07;
+
+
+
+//------------------------------------------------------------------------
+//             ENABLE EXPANDED FLOWSTATION CALCULATIONS
+//------------------------------------------------------------------------
+OTACenable();
+
+
+//------------------------------------------------------------------------
+//  custom solver balances
+//------------------------------------------------------------------------
+Independent ind_R0 {
+   varName = "start.radiusMean_in";
+}
+Independent ind_R1 {
+   varName = "rotor1.radiusMean_in";
+}
+Independent ind_R2 {
+   varName = "rotor2.radiusMean_in";
+}
+Independent ind_R3 {
+   varName = "rotor3.radiusMean_in";
+}
+Independent ind_S1 {
+   varName = "stator1.radiusMean_in";
+}
+Independent ind_S2 {
+   varName = "stator2.radiusMean_in";
+}
+Independent ind_S3 {
+   varName = "stator3.radiusMean_in";
+}
+Independent ind_flow {
+   varName = "start.W";
+}
+
+
+Independent ind_RPM {
+   varName = "rotorShaft.Nmech";
+}
+
+
+Dependent dep_target_Rhub0 {
+   eq_lhs = "start.Fl_O.radiusInner";
+   eq_rhs = "designRhub";
+}
+Dependent dep_target_Rhub1 {
+   eq_lhs = "rotor1.Fl_O1.radiusInner";
+   eq_rhs = "designRhub";
+}
+Dependent dep_target_Rhub2 {
+   eq_lhs = "rotor2.Fl_O1.radiusInner";
+   eq_rhs = "designRhub";
+}
+Dependent dep_target_Rhub3 {
+   eq_lhs = "rotor3.Fl_O1.radiusInner";
+   eq_rhs = "designRhub";
+}
+Dependent dep_target_Shub1 {
+   eq_lhs = "stator1.Fl_O1.radiusInner";
+   eq_rhs = "designRhub";
+}
+Dependent dep_target_Shub2 {
+   eq_lhs = "stator2.Fl_O1.radiusInner";
+   eq_rhs = "designRhub";
+}
+Dependent dep_target_Shub3 {
+   eq_lhs = "stator3.Fl_O1.radiusInner";
+   eq_rhs = "designRhub";
+}
+Dependent dep_target_Rtip1 {
+   eq_lhs = "start.Fl_O.radiusOuter";
+   eq_rhs = "4.00";
+}
+
+
+Dependent dep_target_phi {  // entrance MNrel or flow coefficient
+   eq_lhs = "rotor1.bladeSegment_1.Fl_IR.MNrel"; // "rotor1.bladeSegment_1.Fl_IR.Vz/rotor1.bladeSegment_1.Fl_IR.U";
+   eq_rhs = "0.80"; // "0.70";
+}
+Dependent dep_target_beta {
+   eq_lhs = "rotor1.bladeSegment_1.Fl_IR.beta";
+   eq_rhs = "designAlpha*C_DEGtoRAD";
+}
+
+
+//------------------------------------------------------------------------
+//                         CREATE VIEWER 
+//------------------------------------------------------------------------
+#include <view\OTACpage.view>
+pvStream.filename = "test_output/test_rotor2.out";
+
+
+
+ 
+//------------------------------------------------------------------------
+//                          DESIGN POINT
+//------------------------------------------------------------------------
+setOption( "switchDes", "DESIGN" );
+autoSolverSetup();
+
+solver.removeDependent( "rotorShaft.integrate_Nmech" );
+
+
+// add design stuff
+
+solver.addIndependent( "ind_R0" );
+solver.addIndependent( "ind_R1" );
+solver.addIndependent( "ind_R2" );
+solver.addIndependent( "ind_R3" );
+solver.addIndependent( "ind_S1" );
+solver.addIndependent( "ind_S2" );
+solver.addIndependent( "ind_S3" );
+//solver.addIndependent( "ind_flow" );
+
+solver.addDependent( "dep_target_Rhub0" );
+solver.addDependent( "dep_target_Rhub1" );
+solver.addDependent( "dep_target_Rhub2" );
+solver.addDependent( "dep_target_Rhub3" );
+solver.addDependent( "dep_target_Shub1" );
+solver.addDependent( "dep_target_Shub2" );
+solver.addDependent( "dep_target_Shub3" );
+//solver.addDependent( "dep_target_Rtip1" );
+
+
+//solver.addIndependent( "ind_RPM" );
+//solver.addDependent( "dep_target_beta" );
+
+guessBRvalues( "rotor1", 30.*C_DEGtoRAD, 0.50, 1.20, 12.0 );
+guessBRvalues( "rotor2", 30.*C_DEGtoRAD, 0.50, 1.20, 12.0 );
+guessBRvalues( "rotor3", 30.*C_DEGtoRAD, 0.50, 1.20, 12.0 );
+//guessBRvalues( "stator0", 10.*C_DEGtoRAD, 0.60, 1.0, 0.0 );
+guessBRvalues( "stator1", 2.*C_DEGtoRAD, 0.25, 0.99, 0.0 );
+
+run();
+OTACpage.display();
+
+
+//cout << rotor1.numberOfBlades << endl;
+//cout << rotor1.bladeSegment_1.solidity << endl;
+//cout << rotor1.bladeSegment_1.diffusionFactor << endl;
+cout << rotorShaft.Nmech << endl;
+cout << rotorShaft.Ns << endl;
+/*
+// stagger angles
+cout << endl;
+cout << (rotor1.bladeSegment_1.Fl_IR.beta - rotor1.bladeSegment_1.turning/2.)/C_DEGtoRAD << endl;
+cout << (rotor1.bladeSegment_9.Fl_IR.beta - rotor1.bladeSegment_9.turning/2.)/C_DEGtoRAD << endl;
+cout << (stator1.bladeSegment_1.Fl_IR.beta - stator1.bladeSegment_1.turning/2.)/C_DEGtoRAD << endl;
+cout << (stator1.bladeSegment_9.Fl_IR.beta - stator1.bladeSegment_9.turning/2.)/C_DEGtoRAD << endl;
+cout << endl;
+cout << (rotor2.bladeSegment_1.Fl_IR.beta - rotor2.bladeSegment_1.turning/2.)/C_DEGtoRAD << endl;
+cout << (rotor2.bladeSegment_9.Fl_IR.beta - rotor2.bladeSegment_9.turning/2.)/C_DEGtoRAD << endl;
+cout << (stator2.bladeSegment_1.Fl_IR.beta - stator2.bladeSegment_1.turning/2.)/C_DEGtoRAD << endl;
+cout << (stator2.bladeSegment_9.Fl_IR.beta - stator2.bladeSegment_9.turning/2.)/C_DEGtoRAD << endl;
+cout << endl;
+cout << (rotor3.bladeSegment_1.Fl_IR.beta - rotor3.bladeSegment_1.turning/2.)/C_DEGtoRAD << endl;
+cout << (rotor3.bladeSegment_9.Fl_IR.beta - rotor3.bladeSegment_9.turning/2.)/C_DEGtoRAD << endl;
+cout << (stator3.bladeSegment_1.Fl_IR.beta - stator3.bladeSegment_1.turning/2.)/C_DEGtoRAD << endl;
+cout << (stator3.bladeSegment_9.Fl_IR.beta - stator3.bladeSegment_9.turning/2.)/C_DEGtoRAD << endl;
+*/
+

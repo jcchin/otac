@@ -1,0 +1,43 @@
+//=============================================================================
+//                                    OTAC
+//                Object-Oriented Turbomachinery Analysis Code
+//
+//     written by: Justin S. Gray, Scott M. Jones, and Thomas M. Lavelle
+//
+//=============================================================================
+
+#include <InterpIncludes.ncp>
+
+
+class OTACLossModel extends Subelement {
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++   DOCUMENTATION   ++++++++++
+   //-------------------------------------------------------------------------
+   title = "";
+
+   description = isA()+ " is to be used as the base class for functioning 
+   OTAC loss models.  The loss model will return an estimated value for loss
+   based on the blade segment current conditions; the blade row solver will
+   enforce the condition that the loss estimated from this socket equals the 
+   assumed, or actual, loss for the blade segment.  The form of the loss is
+   set by the blade row attribute switchLossBasis, and may be either total
+   pressure loss, relative total loss parameter (omegaBar), or segment 
+   adiabatic efficiency.
+   ";
+
+   usageNotes = isA() + "";
+
+   socketRequired = FALSE;
+
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++  SET UP VARIABLES  ++++++++++
+   //-------------------------------------------------------------------------
+   real lossReturned {
+      value = 0.06; IOstatus = OUTPUT; units = NONE;
+      description = "estimated loss for this blade segment";
+   }
+
+}
+

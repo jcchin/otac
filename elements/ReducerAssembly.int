@@ -1,0 +1,255 @@
+//
+//=============================================================================
+//                                    OTAC
+//                Object-Oriented Turbomachinery Analysis Code
+//
+//     written by: Justin S. Gray, Scott M. Jones, and Thomas M. Lavelle
+//
+//=============================================================================
+
+#include <InterpIncludes.ncp>
+
+
+class Reducer extends Assembly {
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++   DOCUMENTATION   ++++++++++
+   //-------------------------------------------------------------------------
+   title = "";
+
+   description = isA()+ " will take any number of streamline FlowStations 
+   and combine the results into one aggregate FlowStation.  Mass, 
+   energy, momentum, total area, and mean radius are conserved. Exit flow 
+   angle, Mach number, and pressure are varied to conserve momentum
+   (meridional and tangential) and area.  Energy is conserved though 
+   enthalpy and exit radius is based on the incoming mean radius.  Exit
+   meridional angle is a mass average of the incoming streams. ";
+
+   usageNotes = isA() + " allows any number of flow streams to be 
+   combined into one FlowStation.  The Reducer requires no additional
+   inputs by the user. ";	
+
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++  SET UP VARIABLES  ++++++++++
+   //-------------------------------------------------------------------------
+   int nStreams_defaultFlag {
+      value = 1; IOstatus = INPUT; units = NONE;
+      description = "TBD";
+   }
+   int numberOfStreams {
+      value = 0; IOstatus = INPUT; units = NONE;
+      description = "number of individual streams used in calculations";
+      trigger = 1;
+   }
+   int firstPass = TRUE;  // flag used for an initial guess at exit conditions
+
+   real alphaExit {
+      value = 0; IOstatus = INPUT; units = RAD;
+      description = "exit tangential flow angle of the combined streams";
+   }
+   real htExit {
+      value = 0; IOstatus = INPUT; units = BTU_PER_LBM;
+      description = "exit stagnation enthalpy of the combined streams";
+   }
+   real MNexit {
+      value = 0; IOstatus = INPUT; units = NONE;
+      description = "exit flow Mach number of the combined streams";
+   }
+   real phiExit {
+      value = 0; IOstatus = INPUT; units = RAD;
+      description = "exit meridional flow angle of the combined streams";
+   }
+   real PtExit {
+      value = 0; IOstatus = INPUT; units = PSIA;
+      description = "exit stagnation pressure of the combined streams";
+   }
+   real totalArea {
+      value = 0; IOstatus = OUTPUT; units = INCH2;
+      description = "combined meridional area of the incoming streams";
+   }
+// real totalHt {
+//    value = 0; IOstatus = OUTPUT; units = BTU_PER_SEC;
+//    description = "combined mass*stagnation enthalpy of the incoming streams";
+// }
+   real totalImp {
+      value = 0; IOstatus = OUTPUT; units = LBF;
+      description = "combined meridional impulse of the incoming streams";
+   }
+   real totalPhi {
+      value = 0; IOstatus = OUTPUT; units = NONE;
+      description = "combined mass*meridional angle of the incoming streams";
+   }
+   real totalTrq {
+      value = 0; IOstatus = OUTPUT; units = FT_LBF;
+      description = "combined angular momentum of the incoming streams";
+   }
+
+   string globalDefaults {
+      value = "OTACdefaults";
+      description = "TBD";
+   }
+
+   string inPorts[]; // list of input stream ports
+
+
+   //-------------------------------------------------------------------------
+   //  +++++++++  SET UP PORTS, FLOW STATIONS, SOCKETS, AND TABLES  +++++++++
+   //-------------------------------------------------------------------------
+
+   // PORTS
+   FluidOutputPort Fl_O; 
+   // note: will create n FluidInputPorts
+
+   // FLOW STATIONS
+
+   // SOCKETS
+
+   // TABLES
+
+
+   //-------------------------------------------------------------------------
+   // ++++++  SET UP INTERNAL SOLVER, INDEPENDENTS, AND DEPENDENTS  ++++++
+   //-------------------------------------------------------------------------
+   Solver REDUCERsolver {
+      defaultTolerance = 0.0001;
+      description = "local solver for this reducer assembly";
+      defaultDxLimit = 0.05;
+      defaultPerturbation = 0.01;
+      maxIterations = 50;
+      maxJacobians = 100;
+   }
+
+   Independent ind_alphaOut { 
+      varName = "alphaExit";
+      indepRef = "PI/2.";
+      initXFunction = "xModel + 0.25"; 
+      xMappingFunction = "x - 0.25";
+      autoSetup = TRUE;
+   }
+   Independent ind_MNout { 
+      varName = "MNexit";
+      autoSetup = TRUE;
+   }
+   Independent ind_PtOut { 
+      varName = "PtExit";
+      autoSetup = TRUE;
+   }
+   Dependent dep_areaBalance { 
+      eq_rhs = "Fl_O.area";
+      eq_lhs = "totalArea";
+      autoSetup = TRUE;
+      description = "Conserve meridional area of the combined streams";
+   } 
+   Dependent dep_impBalance { 
+      eq_rhs = "( Fl_O.W * Fl_O.Vm / GRAVITY ) + ( Fl_O.Ps * Fl_O.area )";
+      eq_lhs = "totalImp";
+      autoSetup = TRUE;
+      description = "Conserve meridional impulse of the combined streams";
+   } 
+   Dependent dep_trqBalance { 
+      eq_rhs = "Fl_O.W * Fl_O.radius * Fl_O.Vtheta * ( C_INtoFT/GRAVITY )";
+      eq_lhs = "totalTrq";
+      eq_Ref = "100.";
+      autoSetup = TRUE;
+      description = "Conserve angular momentum of the combined streams";
+   } 
+
+
+   //-------------------------------------------------------------------------
+   //              ++++++++++  SET UP FUNCTIONS  ++++++++++
+   //-------------------------------------------------------------------------
+
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++  VARIABLE CHANGED METHODOLOGY  ++++++++++
+   //-------------------------------------------------------------------------
+   void variableChanged( string name, any oldVal ) {
+
+      //flip the flags to indicate that defaults don't need to be used
+      if ( name=="numberOfStreams" ) {
+         nStreams_defaultFlag = 0;
+      }
+   } 
+
+   void VCinit() {
+
+      // use the global default number of streams if this Flag is true
+      string varPointer;
+      if ( nStreams_defaultFlag ) {
+         varPointer = globalDefaults + ".numberOfStreams";
+         numberOfStreams = varPointer->value;
+      }
+
+      // create correct amount of fluid input ports
+      int n;  //  stream number: n=i+1
+      string inPortName;
+      for ( n=1; n <= numberOfStreams; ++n ) {
+         inPortName = "Fl_I" + toStr(n);
+         inPorts.append( inPortName );
+         create( "", "FluidInputPort", inPortName );
+      }
+
+      //  add the calculations to the solver sequence
+      solverSequence.append( "calculations" );
+   }
+
+
+   //-------------------------------------------------------------------------
+   //        ++++++++++  PERFORM ENGINEERING CALCULATIONS  ++++++++++
+   //-------------------------------------------------------------------------
+   void calculations() {
+
+      // set guesses for exit PT, MN, and ALPHA on the first pass
+      if ( firstPass == TRUE ) { 
+         alphaExit = Fl_I1.alpha;
+         MNexit = Fl_I1.MN;
+         PtExit = Fl_I1.Pt;
+         firstPass = FALSE;
+      } 
+
+      // get the area, enthalpy, impulse, and angular momentum of the first stream
+      Fl_O.copyFlow( inPorts[0] );
+
+      totalArea = inPorts[0]->area;
+    //totalHt = inPorts[0]->W * inPorts[0]->ht;
+      totalImp = ( inPorts[0]->W * inPorts[0]->Vm / GRAVITY ) + ( inPorts[0]->Ps * inPorts[0]->area );
+      totalTrq = inPorts[0]->W * inPorts[0]->radius * inPorts[0]->Vtheta * ( C_INtoFT/GRAVITY );
+      totalPhi = inPorts[0]->W * inPorts[0]->phi;
+
+      // if more than one stream, add them to determine the exit flow
+      // also, find the sum of the streams' areas, enthalpy, impulse, 
+      // torque, and meridional angle
+      int i = 1;
+      while ( i < numberOfStreams ) {
+         Fl_O.add( inPorts[i] ); // use the add function to set exit flow and ht
+
+         totalArea += inPorts[i]->area;
+       //totalHt += inPorts[i]->W * inPorts[i]->ht;
+         totalImp += ( inPorts[i]->W * inPorts[i]->Vm / GRAVITY ) + ( inPorts[i]->Ps * inPorts[i]->area );
+         totalTrq += inPorts[i]->W * inPorts[i]->radius * inPorts[i]->Vtheta * ( C_INtoFT/GRAVITY );
+         totalPhi += inPorts[i]->W * inPorts[i]->phi;
+
+         ++i; 
+      }
+
+
+      // set exit enthalpy and meridional angle from mass averages
+      htExit = Fl_O.ht;  // totalHt / Fl_O.W;
+      phiExit = totalPhi / Fl_O.W;
+
+      // calculate the exit mean radius from the inner stream inner radius and 
+      // the outer stream outer radius
+      real Ri = inPorts[0]->radiusInner;
+      real Ro = inPorts[numberOfStreams-1]->radiusOuter;
+      Fl_O.radius = ( Ri + Ro ) / 2.;
+
+      // set the exit state to conserve energy, meridional area, meridional 
+      // impulse, and angular momentum
+      Fl_O.setTotal_hP( htExit, PtExit ); 
+      Fl_O.setVs_alphaPhiMN( alphaExit, phiExit, MNexit ); 
+
+   }  // end calculate
+
+}  // end Reducer
+

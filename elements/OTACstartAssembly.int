@@ -1,0 +1,271 @@
+//=============================================================================
+//                                    OTAC
+//                Object-Oriented Turbomachinery Analysis Code
+//
+//     written by: Justin S. Gray, Scott M. Jones, and Thomas M. Lavelle
+//
+//=============================================================================
+
+#include <InterpIncludes.ncp>
+
+
+class OTACstart extends Assembly {
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++   DOCUMENTATION   ++++++++++
+   //-------------------------------------------------------------------------
+   title = "";
+
+   description = isA()+ " will start a flow stream with user inputs of weight 
+   flow, total temperature, and total pressure.  Vitiated air may also be 
+   specified by supplying a fuel-to-air ratio and inputs (similar to those 
+   found in the FuelStart) to specify the fuel.";
+
+   usageNotes = isA() + "
+
+     - OTACstart is similar to the FlowStart Element except a few variables
+       have been added to make this Element compatible with OTAC.  These 
+       variables are mean radius (radiusMean_in), flow angle (alpha), and 
+       Mach number (MNdes).  In contrast to the standard FlowStart, OTACstart 
+       will vary Mach number at off-design to maintain flow area to the 
+       design value (assuming mean radius is unchanged). This object was also
+       made into an Assembly in order to remove its iterations from the top
+       level solver.
+
+     - This element is used when the user knows the flow conditions at a given 
+       point (a rig test for example).
+
+     - Fuel conditions are specified when user wanted to specify the flow 
+       conditions upstream of a turbine element for example.";
+
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++  SET UP VARIABLES  ++++++++++
+   //-------------------------------------------------------------------------
+   real Carbon {
+      value = 1;  IOstatus = INPUT;  units = NONE;
+      description = "Carbon mass fraction";
+   }
+   real FAR {
+      value = 0;  IOstatus = INPUT;  units = NONE;
+      description = "Fuel-to-air ratio of the exiting flow";
+   }
+   string fuelType {
+      value = "";  IOstatus = INPUT;  units = NONE;
+      description = "Type of fuel";
+   }
+   real hRef {
+      value = 0;  IOstatus = INPUT;  units = BTU_PER_LBM;
+      description = "Enthalpy of the fuel at reference conditions";
+   }
+   real hFuel {
+      value = 0;  IOstatus = INPUT;  units = BTU_PER_LBM;
+      description = "Enthalpy of the fuel at storage conditions";
+   }
+   real Hydrogen {
+      value = 0.16;  IOstatus = INPUT;  units = NONE;
+      description = "Hydrogen mass fraction";
+   }
+   real LHV {
+      value = 18400;  IOstatus = INPUT;  units = BTU_PER_LBM;
+      description = "Lower heating value";
+   }
+   real Nitrogen2 {
+      value = 0;  IOstatus = INPUT;  units = NONE;
+      description = "Nitrogen mass fraction";
+   }
+   real Oxygen {
+      value = 0;  IOstatus = INPUT;  units = NONE;
+      description = "Oxygen mass fraction";
+   }
+   real Pfuel {
+      value = 0;  IOstatus = INPUT;  units = PSIA;
+      description = "Fuel storage pressure";
+   }
+   real Pt {
+      value = 0;  IOstatus = INPUT;  units = PSIA;
+      description = "Total pressure of the flow";
+   }
+   real Tref {
+      value = 0;  IOstatus = INPUT;  units = RANKINE;
+      description = "Reference temperature";
+   }
+   real Tfuel {
+      value = 530;  IOstatus = INPUT;  units = RANKINE;
+      description = "Fuel storage temperature";
+   }
+   real Tt {
+      value = 0;  IOstatus = INPUT;  units = RANKINE;
+      description = "Total temperature of the flow";
+   }
+   real W {
+      value = 0;  IOstatus = INPUT;  units = LBM_PER_SEC;
+      description = "Weight flow";
+   }
+   real WAR {
+      value = 0;  IOstatus = INPUT;  units = NONE;
+      description = "Water-to-air ratio";
+   }
+
+   real alpha {
+      value = 0; IOstatus = INPUT; units = RAD;
+      description = "Angle between the flow and the axial direction";
+   }
+   real MN {
+      value = 0; IOstatus = OUTPUT; units = NONE;
+      description = "Mach number of the exiting Flow";
+   }
+   real MNdes {
+      value = 0; IOstatus = INPUT; units = NONE;
+      description = "Mach number of the exiting Flow";
+   }
+   real phi {
+      value = 0; IOstatus = INPUT; units = RAD;
+      description = "Angle between the flow and the machine axis";
+   }
+   real radiusInnerDes {
+      value = 0; IOstatus = OUTPUT; units = INCH;
+      description = "inner radius of the flow at design";
+   }
+   real radiusMean_in {
+      value = 12.; IOstatus = INPUT; units = INCH;
+      description = "mean radius of the flow";
+   }
+   real radiusOuterDes {
+      value = 0; IOstatus = OUTPUT; units = INCH;
+      description = "outer radius of the flow at design";
+   }
+
+   Option switchDes {
+      allowedValues = { "DESIGN", "OFFDESIGN" };
+      description = "Determines if this object is in design or off-design mode";
+      IOstatus = INPUT;
+      rewritableValues = FALSE;
+   }
+
+   //-------------------------------------------------------------------------
+   //  ++++++  SET UP INTERNAL SOLVER, INDEPENDENTS, AND DEPENDENTS  ++++++
+   //-------------------------------------------------------------------------
+   Solver STARTsolver {
+      defaultTolerance = 0.0001;
+      description = "local solver for this start assembly";
+      maxIterations = 50;
+      maxJacobians = 100;
+   }
+
+   Independent ind_MN {
+      varName = "MN";
+      autoSetup = FALSE;
+      description = "Varies the flow Mach number at off-design";
+   }
+
+   Dependent dep_OFFDESIGN_Area {
+      eq_lhs = "Fl_O.radiusInner";
+      eq_rhs = "radiusInnerDes";
+      autoSetup = FALSE;
+      description = "Maintains flow annular area at off-design conditions";
+   }
+
+   //-------------------------------------------------------------------------
+   //  +++++++++  SET UP PORTS, FLOW STATIONS, SOCKETS, AND TABLES  +++++++++
+   //-------------------------------------------------------------------------
+
+   // PORTS
+   FluidOutputPort Fl_O {
+      description = "Primary exit flow";
+   }
+
+   // FLOW STATIONS
+   FuelStation fuel {
+      description = "Temporary station used to calculate vitiated flow conditions";
+   }
+
+   // SOCKETS
+
+   // TABLES
+
+   //-------------------------------------------------------------------------
+   //  ++++++  SET UP INTERNAL SOLVER, INDEPENDENTS, AND DEPENDENTS  ++++++
+   //-------------------------------------------------------------------------
+
+
+   //-------------------------------------------------------------------------
+   //                ++++++++++  SET UP FUNCTIONS  ++++++++++
+   //-------------------------------------------------------------------------
+
+   
+   //-------------------------------------------------------------------------
+   //          ++++++++++  VARIABLE CHANGED METHODOLOGY  ++++++++++
+   //-------------------------------------------------------------------------
+   void variableChanged( string name, any oldVal ) {
+      if ( name == "switchDes" ) {
+         if ( switchDes == "OFFDESIGN" ) {
+            ind_MN.autoSetup = TRUE;
+            dep_OFFDESIGN_Area.autoSetup = TRUE;
+         }
+      }
+   }
+
+   //  add the calculations to the solver sequence
+   void VCinit() {
+      solverSequence.append( "calculations" );
+   }  // end VCinit
+
+
+
+   //-------------------------------------------------------------------------
+   //        ++++++++++  PERFORM ENGINEERING CALCULATIONS  ++++++++++
+   //-------------------------------------------------------------------------
+   void calculations() {
+
+      //------------------------------------------------------------
+      // set the weight flow and the war
+      //------------------------------------------------------------
+      Fl_O.FAR = 0.0;
+      Fl_O.WAR = WAR;
+      Fl_O.W = W * (1/(1+FAR));
+
+      //------------------------------------------------------------
+      // if FAR > 0 then mix some fuel in and burn it 
+      //------------------------------------------------------------
+      if ( FAR > 0.0 && W > 0.0 ){
+
+         //---------------------------------------------------------
+         // define the fuel
+         //---------------------------------------------------------
+         fuel.init( fuelType, LHV, Tfuel, Pfuel, hFuel, Tref, hRef, 
+             Carbon, Hydrogen, Nitrogen2, Oxygen );   
+
+         //---------------------------------------------------------
+         // set the fuel flow based on far
+         //---------------------------------------------------------
+         fuel.Wfuel = ( W * ( FAR  / (1 + FAR + WAR))); 
+
+         //---------------------------------------------------------
+         // mix the fuel in and burn it
+         //---------------------------------------------------------
+         Fl_O.burn( "fuel", 1.0 );
+      }
+  
+
+      //------------------------------------------------------------
+      // set the exit conditions based on input
+      // set mach number or area, then the flow angle for OTAC
+      //------------------------------------------------------------
+      Fl_O.radius = radiusMean_in;
+      Fl_O.setTotalTP( Tt, Pt );
+
+      if ( switchDes == "DESIGN" ) { 
+         MN = MNdes;
+         Fl_O.setVs_alphaPhiMN( alpha, phi, MN );
+         radiusInnerDes = Fl_O.radiusInner;
+         radiusOuterDes = Fl_O.radiusOuter;
+      } 
+      else {
+         Fl_O.setVs_alphaPhiMN( alpha, phi, MN );
+      } 
+
+   }  // end calculate
+
+}
+

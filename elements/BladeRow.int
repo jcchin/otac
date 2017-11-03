@@ -1,0 +1,680 @@
+//
+//=============================================================================
+//                                    OTAC
+//                Object-Oriented Turbomachinery Analysis Code
+//
+//     written by: Justin S. Gray, Scott M. Jones, and Thomas M. Lavelle
+//
+//=============================================================================
+
+#include <InterpIncludes.ncp>
+
+
+class BladeRow extends Assembly {
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++   DOCUMENTATION   ++++++++++
+   //-------------------------------------------------------------------------
+   title = "";
+
+   description = isA()+ " manages the turbomachinery calculation for
+   a blade row.  The object will automatically create blade segments to
+   match the input number of streams.  This object is an assembly of
+   these blade segments.  In addition to the blade segments, this object 
+   will create the correct number of ports to match the number of streams.
+
+   This assembly has its own solver.  The independents and dependents 
+   created at the blade segment level are thrown up to this object and 
+   combined with the assembly-level independents and dependents to create
+   the complete set of solver objects for the blade row.  Each blade row 
+   in a turbomachine is solved completely before the next blade row is 
+   started. ";
+
+   usageNotes = isA() + "";
+
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++  SET UP VARIABLES  ++++++++++
+   //-------------------------------------------------------------------------
+   real alphaMean {
+      value = 0; IOstatus = UNSET; units = RAD;
+      description = "Blade row meanline exit angle";
+   }
+   real alphaMeanDesign {
+      value = 0; IOstatus = UNSET; units = RAD;
+      description = "Blade row meanline exit angle at design";
+   }
+   real AN2 {
+      value = 0; IOstatus = OUTPUT; units = NONE;  // units = (in*RPM)^2
+      description = "Area times rotational speed squared, billions (in^2*RPM^2)";
+   }
+   real annulusHeight {
+      value = 10.; IOstatus = OUTPUT; units = INCH;
+      description = "Average spanwise distance of the blade row";
+   }
+   real areaExit {
+      value = 0; IOstatus = OUTPUT; units = INCH2;
+      description = "Blade row exit area";
+   }
+   real areaExitDesign {
+      value = 0; IOstatus = OUTPUT; units = INCH2;
+      description = "Blade row exit area at design";
+   }
+   real aspectRatio {
+      value = 0; IOstatus = INPUT; units = NONE;
+      description = "Ratio of inlet span to chordMean";
+   }
+   real bladeHeight {
+      value = 10.; IOstatus = OUTPUT; units = INCH;
+      description = "Average blade height for this blade row";
+   }
+   real blockage_in {
+      value = 0.; IOstatus = INPUT; units = NONE;
+      description = "Core blockage for each blade segment if a blockage model is not used";
+   }
+   int choke {
+      value = 0; IOstatus = OUTPUT;
+      description = "Flag indicating if the blade row is in choke";
+   }
+   real chordMean {
+      value = 0; IOstatus = INPUT; units = INCH;
+      description = "Airfoil chord for the blade row at the mean radius";
+   }
+   real deviation_in {
+      value = 0.; IOstatus = INPUT; units = RAD;
+      description = "Deviation for each blade segment if a table is not used";
+   }
+   real incidence_in {
+      value = 0.; IOstatus = INPUT; units = RAD;
+      description = "Incidence for each blade segment if a table is not used";
+   }
+   real input_in {
+      value = 0.; IOstatus = INPUT; units = INCH;
+      description = "Design input value (PR, alpha, work) if a table is not used";
+   }
+   real loss_in {
+      value = 0.; IOstatus = INPUT; units = NONE;
+      description = "Loss for each blade segment if a loss model is not used";
+   }
+   real MNmean {
+      value = 0; IOstatus = UNSET; units = NONE;
+      description = "Blade row meanline exit Mach number";
+   }
+   real MNmeanDesign {
+      value = 0; IOstatus = UNSET; units = NONE;
+      description = "Blade row meanline exit Mach number at design";
+   }
+   int numberOfBlades {
+      value = 1; IOstatus = INPUT;
+      description = "Number of blades in the blade row";
+   }
+   int numberOfStreams {
+      value = 0; IOstatus = INPUT; units = NONE;
+      description = "Number of individual streamlines used in calculations";
+      trigger = 1;
+   }
+   real pwr {
+      value = 0.; units = HORSEPOWER;
+      description = "Summed power of all the blade segments in this blade row";
+   }
+   real radiusHubExit {
+      value = 10.; units = INCH;
+      description = "Hub radius at the exit of the blade row";
+   }
+   real radiusHubInlet {
+      value = 10.; units = INCH;
+      description = "Hub radius at the entrance to the blade row";
+   }
+   real radiusMean {
+      value = 0; IOstatus = UNSET; units = INCH;
+      description = "Current value of the mean radius at the blade row exit";
+   }
+   real radiusMeanDesign {
+      value = 0; IOstatus = UNSET; units = INCH;
+      description = "Blade row exit mean radius at design";
+   }
+   real radiusMean_in {
+      value = 12.; IOstatus = INPUT; units = INCH;
+      description = "Input value for blade row exit mean radius at design";
+   }
+   real radiusTipExit {
+      value = 30.; units = INCH;
+      description = "Tip radius at the exit of the blade row";
+   }
+   real radiusTipInlet {
+      value = 30.; units = INCH;
+      description = "Tip radius at the entrance to the blade row";
+   }
+   real rotation {
+      value = 0; IOstatus = INPUT; units = RAD;
+      description = "Angular rotation of blade row from actuation";
+   }
+   real roughness {
+      value = 0; IOstatus = INPUT; units = NONE;
+      description = "Roughness of the blade surface";
+   }
+   int stall {
+      value = 0; IOstatus = OUTPUT;
+      description = "Flag indicating if the blade row is in stall";
+   }
+   real taperRatio {
+      value = 1.; IOstatus = INPUT; units = NONE;
+      description = "Ratio of blade tip chord length to hub chord length";
+   }
+
+   Option switchDes {
+      allowedValues = { "DESIGN", "OFFDESIGN" };
+      description = "Determines if this object is in design or off-design mode";
+      IOstatus = INPUT;
+      rewritableValues = FALSE;
+   }
+
+   Option switchRotate {
+      allowedValues = { "ROTATING", "NON_ROTATING" };
+      trigger = 1;
+      description = "Sets whether the BladeRow is a rotor or a stator/vane";
+   }
+   string custom_in;
+   Option switchSpanwiseInput {
+      allowedValues = { "ALPHA", "PR", "WORK", "CUSTOM" };
+      description = "Switch to set the blade spanwise design input specification";
+   }
+   Option switchLossBasis {
+      allowedValues = { "PTOT", "PTOTREL", "EFF", "TURBINE", "TURBINE_ALT" };
+      description = "Basis for loss parameter returned from loss socket";
+   }
+   // POSITIVE: comp. rotor, turb. vane,   comp. IGV, turb. rotor (CR, negative U)
+   // NEGATIVE: turb. rotor, comp. stator
+   Option switchBladeAngleSign {
+      allowedValues = { "POSITIVE", "NEGATIVE" };
+      description = "Necessary sign convention for determining blade metal angles";
+   }
+
+   Option switchBackPressure {
+      allowedValues = { "INPUT_FLOW", "INPUT_PS" };
+      description = "Option to run to a target back pressure";
+   }
+
+   // internal variables
+   string globalDefaults = "OTACdefaults";
+   int nStreams_defaultFlag = 1;
+
+
+   // internal array variables
+   string bladeSegments[];  // list of blade segment objects in this blade row    
+   string inPorts[];        // list of blade row fluid input ports
+   string outPorts[];       // list of blade row fluid output ports
+   string currentSegment;   // name of the current blade segment
+
+
+   real LEradiusValues[];  // design values of entrance radii
+   real LEangleValues[];   // design values of entrance blade angles
+   real TEradiusValues[];  // design values of exit radii
+   real TEangleValues[];   // design values of exit blade angles
+
+   
+   real Vtheta2_q_r[25];  //  lbf/lbm
+   real dpdr_q_rho[25];   //  lbf/lbm
+   real dhdr[25];         //  lbf/lbm
+   real dhtdr[25];        //  lbf/lbm
+   real T_dsdr[25];       //  lbf/lbm
+   real Vz_dVzdr[25];     //  lbf/lbm
+   real Vt_dVtdr[25];     //  lbf/lbm
+   real Vtheta_r[25];
+   real bladeREcorr[25];
+
+
+   //-------------------------------------------------------------------------
+   // +++++++++  SET UP PORTS, FLOW STATIONS, SOCKETS, AND TABLES  +++++++++
+   //-------------------------------------------------------------------------
+
+   // PORTS
+
+   // FLOW STATIONS
+
+   // SOCKETS
+   Socket S_INCIDENCEvR {
+      allowedValues = { "incidence" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "design incidence angle as a function of radius";
+      socketType = "Function";
+   }
+
+   Socket S_INPUTvR {
+      allowedValues = { "targetValue" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "exit spanwise design target value";
+      socketType = "Function";
+   }
+
+   Socket S_PHIvR { 
+      allowedValues = { "PHIexit" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "flow meridional angle radial variation socket";
+      socketType = "Function";
+   }
+
+   Socket S_RadEq {
+      allowedValues = { "radEqCorrection" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "custom correction to radial equilibrium equation";
+      socketType = "Function";
+   }
+
+   Socket S_Geometry { 
+      allowedValues = {  };
+      description = "contains blade geometry parameters to be returned to the blade segments";
+      socketType = "BLADEGEOM";
+   }
+
+/*
+   Socket S_Blockage { 
+      allowedValues = { "blockage" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "flow blockage radial variation socket";
+      socketType = "Function";
+   }
+*/
+
+   // TABLES
+   // tables will be created and populated after the design point
+
+
+   //-------------------------------------------------------------------------
+   //  ++++++  SET UP INTERNAL SOLVER, INDEPENDENTS, AND DEPENDENTS  ++++++
+   //-------------------------------------------------------------------------
+   Solver BRsolver {
+      defaultTolerance = 0.0001;
+      description = "local solver for this blade row assembly";
+    //defaultDxLimit = 0.05;
+    //defaultPerturbation = 0.01;
+      maxIterations = 50;
+      maxJacobians = 100;
+   }
+
+   Dependent dep_DESIGN_MeanRadius {
+      eq_lhs = "radiusMean";
+      eq_rhs = "radiusMean_in";
+      autoSetup = TRUE;
+      description = "Force mean radius to equal the design input value";
+   }
+   Dependent dep_DESIGN_Area {
+      eq_lhs = "Fl_O1.Vm";
+      eq_rhs = "Fl_I1.Vm";
+      autoSetup = TRUE;
+      description = "Force meridional velocity to remain constant across the blade row";
+   }
+
+   Dependent dep_OFFDESIGN_MeanRadius {
+      eq_lhs = "radiusMean";
+      eq_rhs = "radiusMeanDesign";
+      autoSetup = FALSE;
+      description = "Force the exit mean radius to stay the same at off-design";
+   } 
+   Dependent dep_OFFDESIGN_Area {
+      eq_lhs = "areaExit";
+      eq_rhs = "areaExitDesign";
+      autoSetup = FALSE;
+      description = "Force the exit area to stay the same at off-design";
+   } 
+
+
+
+   //-------------------------------------------------------------------------
+   //              ++++++++++  SET UP FUNCTIONS  ++++++++++
+   //-------------------------------------------------------------------------
+
+   // Function to place a subelement in a blade segment's socket
+   void addSubelementToStack( string subElementType, string socketName ) {
+      int i;
+      for ( i=0; i < numberOfStreams; ++i ) {
+         bladeSegments[i]->create( "", subElementType, socketName );
+      }
+   }
+
+
+   // Function to create tables of blade entrance and exit angles versus radius
+   void saveDesignBladeAngles( string name, real xarray[], real yarray[] ) {
+      string xName = "radius";
+      string yName = "BldAng";
+
+      string tableDefinition = "Table " + name + "(real " + xName + ") { " +
+          xName + "=" + toStr(xarray) + " " + 
+          yName + "=" + toStr(yarray) + " }";
+
+      //cout << tableDefinition << endl;
+      parseString( tableDefinition );
+   }
+
+
+   //  Check to see if any blade segment is choked
+   void postexecute() {
+      int i;
+      choke = FALSE;
+      for ( i=0; i < numberOfStreams; ++i ) {
+         if ( bladeSegments[i]->choke == TRUE ) {
+            choke = TRUE;
+            break;
+         }
+      }
+   }
+
+
+
+   //-------------------------------------------------------------------------
+   //          ++++++++++  VARIABLE CHANGED METHODOLOGY  ++++++++++
+   //-------------------------------------------------------------------------
+   void variableChanged( string name, any oldVal ) {
+
+      //------------------------------------------------------------
+      // determine appropriate solver setup based on design switch
+      // and number of streams
+      //------------------------------------------------------------
+      if ( name == "switchDes" ) {
+         if ( switchDes == "OFFDESIGN" ) {
+            dep_DESIGN_MeanRadius.autoSetup = FALSE;
+            dep_DESIGN_Area.autoSetup = FALSE;
+            dep_OFFDESIGN_MeanRadius.autoSetup = TRUE;
+            dep_OFFDESIGN_Area.autoSetup = TRUE;
+         }
+      }
+      
+      if ( name == "switchBackPressure" && switchBackPressure == "INPUT_PS" ) {
+         dep_OFFDESIGN_Area.autoSetup = FALSE;
+      }
+
+   }
+
+   //  create the blade segments, their ports, and associated solver objects
+   void VCinit() {
+
+      //------------------------------------------------------------
+      // set the number of streams if the default flag is used
+      //------------------------------------------------------------
+      if ( nStreams_defaultFlag ) {
+         string varPointer = globalDefaults + ".numberOfStreams";
+         numberOfStreams = varPointer->value;
+      }
+
+      //------------------------------------------------------------
+      // create a shaft port for rotating blade rows
+      //------------------------------------------------------------
+      if ( switchRotate == "ROTATING" ) {
+         create( "", "ShaftOutputPort", "Sh_O" );
+      }
+
+      //------------------------------------------------------------
+      // create a blade segment for each stream, promote each 
+      // segment's input and output port to the assembly level, and
+      // create solver dependents based on number of streams
+      //------------------------------------------------------------
+      string segName, inPortName, outPortName;
+
+      int i;   // i=1 is the stream closest to the hub
+      for( i=1; i <= numberOfStreams; ++i ) {
+
+         //---------------------------------------------------------
+         // create blade segments of the appropriate type
+         //---------------------------------------------------------
+         segName = "bladeSegment_" + toStr(i);
+         bladeSegments.append( segName );
+         create( "", "BladeSegment", segName );
+
+
+         //---------------------------------------------------------
+         // promote segment fluid ports to the assembly border
+         //---------------------------------------------------------
+         inPortName = "Fl_I" + toStr(i);
+         promotePort( segName+".Fl_I", inPortName );
+         inPorts.append( inPortName );
+
+         outPortName = "Fl_O" + toStr(i);
+         promotePort( segName+".Fl_O", outPortName );
+         outPorts.append( outPortName );
+
+         //---------------------------------------------------------
+         // create placeholders for blade angles used in the table definition
+         //---------------------------------------------------------
+         LEradiusValues.append( toReal(i) );
+         LEangleValues.append( toReal(i*2.) );
+         TEradiusValues.append( toReal(i) );
+         TEangleValues.append( toReal(i*2.) );
+         
+         // for meanline add another placeholder
+         if ( numberOfStreams == 1 ) { 
+            LEradiusValues.append( toReal(i) );
+            LEangleValues.append( toReal(i*2.) );
+            TEradiusValues.append( toReal(i) );
+            TEangleValues.append( toReal(i*2.) );
+         } 
+
+
+         //---------------------------------------------------------
+         // create n-1 dependents to go with the blade row assembly
+         //---------------------------------------------------------
+         string depname;
+
+         if ( i > 1 ) {
+
+            // dependent to match a segment's hub radius to the tip radius
+            // of the segment below it
+            depname = "dep_Rhub" + toStr(i) + "EqRtip" + toStr(i-1);
+            create( "", "Dependent", depname );
+            depname->eq_lhs = "bladeSegment_" + toStr(i) + ".radiusInnerBlk";
+            depname->eq_rhs = "bladeSegment_" + toStr(i-1) + ".radiusOuterBlk";
+
+            //depname->tolerance = 0.001;
+            depname->autoSetup = TRUE;
+            depname->description = "Match blade segment radii to each other";
+
+            // dependent to satisfy radial equilibrium
+            depname = "dep_RadEq" + toStr(i-1);
+            create( "", "Dependent", depname );
+            depname->eq_lhs = "dpdr_q_rho[" + toStr(i-1) + "]";
+            //depname->eq_rhs = "Vtheta2_q_r[" + toStr(i-1) + "]";
+            depname->eq_rhs = "Vtheta2_q_r[" + toStr(i-1) + "] - bladeREcorr[" + toStr(i-1) + "]";
+            //depname->tolerance = 0.001;
+            depname->autoSetup = TRUE;
+            depname->eq_Ref = "100.";  // test - SMJ
+            depname->description = "Match radial equilibrium";
+
+         }
+      }
+
+
+      solverSequence.append( "calculations" );
+
+   }  // end VCinit
+
+
+   //-------------------------------------------------------------------------
+   //  calculations function 
+   //-------------------------------------------------------------------------
+   void calculations() {
+
+      //------------------------------------------------------------
+      // determine the exit mean radius, Mach number, and alpha
+      // interpolate if the mean radius does not lie on a streamline
+      //------------------------------------------------------------
+      string name1, name2;
+
+      if ( numberOfStreams == 1 ) {
+         radiusMean = Fl_O1.radius;
+         MNmean = Fl_O1.MN;
+         alphaMean = Fl_O1.alpha;
+      } 
+      else {
+
+         // calculate the mean radius
+         name1 = "bladeSegment_1";
+         name2 = "bladeSegment_" + toStr( numberOfStreams );
+         radiusMean = ( name1->radiusInnerBlk + name2->radiusOuterBlk ) / 2.;
+
+         // find the streamlines whose radius bracket the mean
+         int i = 1;
+         do {
+            name1 = "Fl_O" + toStr(i);
+            i++;
+         } while ( name1->radiusOuter < radiusMean && i < numberOfStreams );
+         name2 = "Fl_O" + toStr(i);
+
+         // linear interpolation for mean MN and alpha
+         MNmean =    ( radiusMean - name1->radius ) / 
+           ( name2->radius - name1->radius ) * ( name2->MN - name1->MN ) + name1->MN;
+         alphaMean = ( radiusMean - name1->radius ) / 
+           ( name2->radius - name1->radius ) * ( name2->alpha - name1->alpha ) + name1->alpha;
+
+      }
+      
+      // blade exit area
+      name1 = "bladeSegment_1";
+      name2 = "bladeSegment_" + toStr( numberOfStreams );
+      areaExit = PI * ( name2->radiusOuterBlk**2. - name1->radiusInnerBlk**2.  );
+      
+      // blade AN2
+      if ( switchRotate == "ROTATING" ) {
+         AN2 = areaExit * Sh_O.Nmech * Sh_O.Nmech / 1.0e9;
+      }
+
+
+      //------------------------------------------------------------
+      // save geometry values at design
+      //------------------------------------------------------------
+      if ( switchDes == "DESIGN" ){ 
+         MNmeanDesign = MNmean;
+         alphaMeanDesign = alphaMean;
+         radiusMeanDesign = radiusMean;
+         radiusHubInlet = Fl_I1.radiusInner;
+         radiusHubExit  = bladeSegment_1.radiusInnerBlk;
+
+         name1 = "Fl_I" + toStr( numberOfStreams );
+         radiusTipInlet = name1->radiusOuter;
+         name2 = "bladeSegment_" + toStr( numberOfStreams );
+         radiusTipExit = name2->radiusOuterBlk;
+         areaExitDesign = areaExit;
+
+         // calculate average annulus height 
+         annulusHeight = ( radiusTipInlet - radiusHubInlet + radiusTipExit - radiusHubExit )/2.;
+
+         // calculate blade height, mean chord, and blade aspect ratio
+         if ( S_Geometry.isEmpty() ) { 
+            bladeHeight = annulusHeight;
+         } 
+         else {
+            bladeHeight = annulusHeight - S_Geometry.tipClearance_in;
+
+            if ( S_Geometry.S_CHORDvR.isEmpty() ) {
+               chordMean = S_Geometry.chord_in;
+            } 
+            else {
+               chordMean = S_Geometry.S_CHORDvR( 0.50 );
+               taperRatio = S_Geometry.S_CHORDvR( 1. ) / S_Geometry.S_CHORDvR( 0. );
+            } 
+         } 
+         aspectRatio = bladeHeight / chordMean;
+
+
+         // save blade angles
+         int ns;
+         for ( ns=0; ns < numberOfStreams; ++ns ) {
+            LEradiusValues[ns] = bladeSegments[ns]->radiusInlet;
+            LEangleValues[ns] = bladeSegments[ns]->bladeInletAngle;
+            TEradiusValues[ns] = bladeSegments[ns]->radiusExit;
+            TEangleValues[ns] = bladeSegments[ns]->bladeExitAngle;
+
+            // for meanline add dummy value to table
+            if ( numberOfStreams == 1 ) { 
+               LEradiusValues[1] = 100.;
+               LEangleValues[1] = bladeSegments[ns]->bladeInletAngle;
+               TEradiusValues[1] = 100.;
+               TEangleValues[1] = bladeSegments[ns]->bladeExitAngle;
+            } 
+         }
+      } 
+
+      //------------------------------------------------------------
+      // sum power from each blade segment; then set torque in 
+      // the shaft port
+      //------------------------------------------------------------
+      int n;
+      pwr = 0.0;
+      for ( n=0; n < numberOfStreams; ++n ) {
+         pwr = pwr + bladeSegments[n]->pwrBladeSegment;
+      }
+
+      if ( switchRotate == "ROTATING" ) {
+         Sh_O.trq = pwr / Sh_O.Nmech * C_FT_LBF_RPM_PER_HP;
+      }
+
+      //------------------------------------------------------------
+      // required calculations involving radial equilibrium
+      // LHS = 1/rho * dp/dr
+      // RHS = Vtheta^2 / r
+      //------------------------------------------------------------
+      for ( n=1; n < numberOfStreams; ++n ) {
+
+         // correction term
+         bladeREcorr[n] = bladeSegments[n]->radEqCorrection;
+
+         // for hub and tip streams use this
+         if (n==1 || n==(numberOfStreams-1) ) { 
+            dpdr_q_rho[n] = ( ( bladeSegments[n]->Fl_OR.Ps - bladeSegments[n-1]->Fl_OR.Ps )*1728.*2. ) / 
+                        ( bladeSegments[n]->Fl_OR.radius - bladeSegments[n-1]->Fl_OR.radius ) / 
+                        ( bladeSegments[n]->Fl_OR.rhos + bladeSegments[n-1]->Fl_OR.rhos );
+
+            Vtheta2_q_r[n] = ( ( (bladeSegments[n]->Fl_OR.Vtheta + bladeSegments[n-1]->Fl_OR.Vtheta)/2. )**2. )*(12./GRAVITY) / 
+                        ((bladeSegments[n]->Fl_OR.radius + bladeSegments[n-1]->Fl_OR.radius)/2. );
+
+            dhdr[n] = ( bladeSegments[n]->Fl_OR.hs - bladeSegments[n-1]->Fl_OR.hs )*(12.*JOULES_CONST) /
+                       ( bladeSegments[n]->Fl_OR.radius - bladeSegments[n-1]->Fl_OR.radius );
+            T_dsdr[n] = ( ( bladeSegments[n]->Fl_OR.Ts + bladeSegments[n-1]->Fl_OR.Ts )/2. ) * 
+                       ( bladeSegments[n]->Fl_OR.entropy - bladeSegments[n-1]->Fl_OR.entropy )*(12.*JOULES_CONST) /
+                       ( bladeSegments[n]->Fl_OR.radius - bladeSegments[n-1]->Fl_OR.radius );
+
+            dhtdr[n] = ( bladeSegments[n]->Fl_OR.ht - bladeSegments[n-1]->Fl_OR.ht )*(12.*JOULES_CONST) /
+                       ( bladeSegments[n]->Fl_OR.radius - bladeSegments[n-1]->Fl_OR.radius );
+            Vz_dVzdr[n] = ( ( bladeSegments[n]->Fl_OR.Vz + bladeSegments[n-1]->Fl_OR.Vz )/2. ) * 
+                       ( bladeSegments[n]->Fl_OR.Vz - bladeSegments[n-1]->Fl_OR.Vz )*(12./GRAVITY) /
+                       ( bladeSegments[n]->Fl_OR.radius - bladeSegments[n-1]->Fl_OR.radius );
+            Vt_dVtdr[n] = ( ( bladeSegments[n]->Fl_OR.Vtheta + bladeSegments[n-1]->Fl_OR.Vtheta )/2. ) * 
+                       ( bladeSegments[n]->Fl_OR.Vtheta - bladeSegments[n-1]->Fl_OR.Vtheta )*(12./GRAVITY) /
+                       ( bladeSegments[n]->Fl_OR.radius - bladeSegments[n-1]->Fl_OR.radius );
+
+         } else {
+            dpdr_q_rho[n] = ( ( bladeSegments[n+1]->Fl_OR.Ps - bladeSegments[n-1]->Fl_OR.Ps )*1728. ) / 
+                        ( bladeSegments[n+1]->Fl_OR.radius - bladeSegments[n-1]->Fl_OR.radius ) / 
+                        ( bladeSegments[n]->Fl_OR.rhos );
+
+            Vtheta2_q_r[n] = ( (bladeSegments[n]->Fl_OR.Vtheta)**2. )*(12./GRAVITY) / 
+                        (bladeSegments[n]->Fl_OR.radius );
+
+            dhdr[n] = ( bladeSegments[n+1]->Fl_OR.hs - bladeSegments[n-1]->Fl_OR.hs )*(12.*JOULES_CONST) / 
+                        ( bladeSegments[n+1]->Fl_OR.radius - bladeSegments[n-1]->Fl_OR.radius );
+            T_dsdr[n] = ( bladeSegments[n]->Fl_OR.Ts ) * 
+                      ( bladeSegments[n+1]->Fl_OR.entropy - bladeSegments[n-1]->Fl_OR.entropy )*(12.*JOULES_CONST) / 
+                      ( bladeSegments[n+1]->Fl_OR.radius - bladeSegments[n-1]->Fl_OR.radius );
+
+            dhtdr[n] = ( bladeSegments[n+1]->Fl_OR.ht - bladeSegments[n-1]->Fl_OR.ht )*(12.*JOULES_CONST) / 
+                        ( bladeSegments[n+1]->Fl_OR.radius - bladeSegments[n-1]->Fl_OR.radius );
+            Vz_dVzdr[n] = ( bladeSegments[n]->Fl_OR.Vz ) * 
+                      ( bladeSegments[n+1]->Fl_OR.Vz - bladeSegments[n-1]->Fl_OR.Vz )*(12./GRAVITY) / 
+                      ( bladeSegments[n+1]->Fl_OR.radius - bladeSegments[n-1]->Fl_OR.radius );
+            Vt_dVtdr[n] = ( bladeSegments[n]->Fl_OR.Vtheta ) * 
+                      ( bladeSegments[n+1]->Fl_OR.Vtheta - bladeSegments[n-1]->Fl_OR.Vtheta )*(12./GRAVITY) / 
+                      ( bladeSegments[n+1]->Fl_OR.radius - bladeSegments[n-1]->Fl_OR.radius );
+
+         } 
+         
+         Vtheta_r[n] = bladeSegments[n]->Fl_OR.Vtheta * bladeSegments[n]->Fl_OR.radius;
+
+      }
+
+   }  // end calculations
+
+}  // end Assembly
+

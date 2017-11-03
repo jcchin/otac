@@ -1,0 +1,945 @@
+//
+//=============================================================================
+//                                    OTAC
+//                Object-Oriented Turbomachinery Analysis Code
+//
+//     written by: Justin S. Gray, Scott M. Jones, and Thomas M. Lavelle
+//
+//=============================================================================
+
+#include <InterpIncludes.ncp>
+
+
+class BladeSegment extends Element {
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++   DOCUMENTATION   ++++++++++
+   //-------------------------------------------------------------------------
+   title = "";
+
+   description = isA()+ " calculates the performance of a streamtube of flow 
+   through a particular blade segment.  The blade segment will be either 
+   rotating or non-rotating based on the BladeRow switchRotate attribute.  
+   The blade segment follows a given amount of flow across the blade row; the 
+   radius associated with this flow segment can change from entrance to exit 
+   and from case to case while the blade geometry remains fixed. ";
+
+   usageNotes = isA() + " will be created automatically based on the user
+   input number of streams (one blade segment per stream) and made part of 
+   a blade row assembly.  In order to maintain consistency, calculations 
+   should be done using the internal incoming and outgoing relative flow
+   stations Fl_IR and Fl_OR.  The exit state of the flow from the blade 
+   segment is determined by input of the exit flow MN, ht, alpha, PR, and 
+   radius.  These inputs are varied by the blade row solver in order to 
+   generate a physically valid solution.  The blade row incidence is input
+   at design which then determines the blade metal inlet angle at the radius
+   of this flow segment; at off-design the incidence is based on incoming 
+   flow angle and the interpolated blade metal inlet angle.  A socket may be
+   used to predict deviation which will determine the blade metal exit angle
+   at design; at off-design the deviation is based on the exit flow angle 
+   and the interpolated blade metal exit angle.  Note that the exit flow 
+   angle is forced to observe this relation through a Dependent";
+
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++  SET UP VARIABLES  ++++++++++
+   //-------------------------------------------------------------------------
+   real alphaExit {
+      value = 45.*C_DEGtoRAD; units = RAD;
+      description = "Absolute exit flow angle for this blade segment";
+   }
+   real aqc {
+      value = 0.1; units = NONE;
+      description = "Ratio of the location of blade maximum thickness to chord length for this blade segment";
+   }
+   real areaGeom {
+      value = 0.; units = INCH2;
+      description = "Geometric area associated with flow at the blade segment exit";
+   }
+   real AVDR {
+      value = 0.; units = NONE;
+      description = "Axial velocity - density ratio for this blade segment";
+   }
+   real axialChord {
+      value = 1.; units = INCH;
+      description = "Component of chord length in the axial/meridional direction for this blade segment";
+   }
+   real bladeExitAngle {
+      value = 0.; units = RAD;
+      description = "Blade exit angle at the radius of the flow through this blade segment";
+   }
+   real bladeInletAngle {
+      value = 0.; units = RAD;
+      description = "Blade entrance angle at the radius of the flow through this blade segment";
+   }
+   real bladeRc {
+      value = 3.00; units = INCH;
+      description = "Radius of curvature of the aft-end of the blade convex surface";
+   }
+   real blockage {
+      value = 0.00; units = NONE;
+      description = "Blockage (1 minus flow effective area divided by geometric area) for this blade segment";
+   }
+   real camber {
+      value = 0; units = RAD;
+      description = "Camber angle for this blade segment";
+   }
+   int choke {
+      value = 0; units = NONE;
+      description = "Flag indicating if this blade segment is currently in choke";
+   }
+   real chord {
+      value = 1.; units = INCH;
+      description = "Chord length at the current radial location";
+   }
+   real deflection {
+      value = 0; units = RAD;
+      description = "Flow deflection or turning (beta in - beta out), for this blade segment";
+   }
+   real deHaller {
+      value = 0.; units = NONE;
+      description = "deHaller number, ratio of exit to inlet relative velocity, for this blade segment";
+   }
+   real desiredVariable {
+      value = 0; units = NONE;
+      description = "Design variable for this blade segment - angle, PR, or work";
+   }
+   real deviation {
+      value = 0; units = RAD;
+      description = "Flow deviation angle from this blade segment";
+   }
+   real deviationGuess {
+      value = 0.07; units = RAD;
+      description = "Initial guess for flow deviation angle";
+   }
+   real diffusionFactor {
+      value = 0; units = NONE;
+      description = "Diffusion factor of the flow across this blade segment";
+   }
+   real dhGuess {
+      value = 0.; units = BTU_PER_LBM;
+      description = "Initial guess for enthalpy change across this blade segment";
+   }
+   real flowAngleOut {
+      value = 0.; units = RAD;
+      description = "Relevant exit flow angle with respect to blade angle and deviation";
+   }
+   real flowCoefficient {
+      value = 0; units = NONE;
+      description = "Ratio of axial velocity to blade speed, Vx/U";
+   }
+   real htExit {
+      value = 20.; units = BTU_PER_LBM;
+      description = "Exit total enthalpy for this blade segment";
+   }
+   real incidence {
+      value = 0; units = RAD;
+      description = "Flow incidence angle into this blade segment";
+   }
+   real incidenceDes {
+      value = 0; units = RAD;
+      description = "Design value of flow incidence angle";
+   }
+   real incidenceGuess {
+      value = 0.035; units = RAD;
+      description = "Initial guess for flow incidence angle";
+   }
+   real loadingCoefficient {
+      value = 0; units = NONE;
+      description = "Ratio of enthalpy rise to blade speed squared, del_ht/U^2";
+   }
+   real lossActual {
+      value = 0.; units = NONE;
+      description = "Actual loss across this blade segment";
+   }
+   real lossEstimated {
+      value = 0.; units = NONE;
+      description = "Estimated loss across this blade segment from socket calculation";
+   }
+   real lossParameter {
+      value = 0.; units = NONE;
+      description = "Blade segment pressure loss parameter";
+   }
+   real MNexit {
+      value = 0.7; units = NONE;
+      description = "Exit Mach number for this blade segment";
+   }
+   real omegaBar {
+      value = 0.0; units = NONE;
+      description = "Non-dimensional relative total pressure loss coefficient";
+   }
+   real opening {
+      value = 1.; units = INCH;
+      description = "Perpendicular distance from blade trailing edge to suction surface of adjacent blade";
+   }
+   real openingToPitch {
+      value = 1.; units = NONE;
+      description = "Ratio of opening to pitch for this blade segment";
+   }
+   real percentLEspan {
+      value = 0; units = NONE;
+      description = "Percentage of the flow radius relative to the blade span at the blade leading edge";
+   }
+   real percentTEspan {
+      value = 0; units = NONE;
+      description = "Percentage of the flow radius relative to the blade span at the blade trailing edge";
+   }
+   real phiExit {
+      value = 0.; units = RAD;
+      description = "Flow exit meridional angle for this blade segment";
+   }
+   real pitch {
+      value = 0.; units = INCH;
+      description = "Tangential distance between adjacent blades at the current radial location";
+   }
+   real pitchToChord {
+      value = 0.; units = NONE;
+      description = "Ratio of pitch to chord at the current radial location";
+   }
+   real PR {
+      value = 1.70; units = PSIA;
+      description = "Actual pressure ratio of the flow across the blade segment";
+   }
+   real PRideal {
+      value = 1.3; units = PSIA;
+      description = "Ideal pressure ratio of the flow across the blade segment";
+   }
+   real PtLossActual {
+      value = 0; units = NONE;
+      description = "Pressure loss coefficient across the blade segment based entrance velocity";
+   }
+   real PtLossTurb {
+      value = 0; units = NONE;
+      description = "Pressure loss coefficient across the blade segment based on rothalpy pressures and exit velocity";
+   }
+   real PtLossTurb_alt {
+      value = 0; units = NONE;
+      description = "Pressure loss coefficient across the blade segment based on entrance pressures and exit velocity";
+   }
+   real pwrBladeSegment {
+      value = 0; units = HORSEPOWER;
+      description = "Work done by the flow across the blade segment";
+   }
+   real radiusExit {
+      value = 10.; units = INCH;
+      description = "Flow exit radius";
+   }
+   real radiusInlet {
+      value = 10.; units = INCH;
+      description = "Flow entrance radius";
+   }
+   real radiusInnerBlk {
+      value = 10.; units = INCH;
+      description = "Flow inner radius with blockage";
+   }
+   real radiusOuterBlk {
+      value = 10.; units = INCH;
+      description = "Flow outer radius with blockage";
+   }
+   real radiusOfCurvature {
+      value = 1.e10; units = INCH;
+      description = "Radius of curvature of the flow across this blade segment";
+   }
+   real ReynoldsNumber {
+      value = 1.; units = NONE;
+      description = "Reynolds number for this blade segment based on chord length";
+   }
+   real rothalpyExit {
+      value = 0.; units = BTU_PER_LBM;
+      description = "Flow exit rothalpy for this blade segment";
+   }
+   real rothalpyInlet {
+      value = 0.; units = BTU_PER_LBM;
+      description = "Flow entrance rothalpy for this blade segment";
+   }
+   real segmentEff {
+      value = 0; units = NONE;
+      description = "Efficency parameter for this blade segment";
+   }
+   real slipFactor {
+      value = 0.; units = NONE;
+      description = "Slip factor, defined as 1 - Vslip/U";
+   }
+   real solidity {
+      value = 0.; units = NONE;
+      description = "Blade solidity, ratio of blade chord to pitch spacing";
+   }
+   real staggerAngle {
+      value = 0.; units = RAD;
+      description = "Stagger angle for this blade segment";
+   }
+   int stall {
+      value = FALSE; units = NONE;
+      description = "Flag indicating if this blade segment is currently in stall";
+   }
+   real targetValue {
+      value = 0; units = NONE;
+      description = "Design value of the desired variable";
+   }
+   real TEthickness {
+      value = 0.; units = INCH;
+      description = "Blade trailing edge thickness at the current radial location";
+   }
+   real TEthicknessToPitch {
+      value = 0.; units = NONE;
+      description = "Ratio of blade trailing edge thickness to pitch at the current radial location";
+   }
+   real thicknessToChord {
+      value = 0.; units = NONE;
+      description = "Ratio of blade maximum thickness to chord length at the current radial location";
+   }
+   real tipClearance {
+      value = 0.; units = INCH;
+      description = "Tip clearance for this blade segment";
+   }
+   real tipClearanceToBladeHeight {
+      value = 0.; units = NONE;
+      description = "Ratio of tip clearance to blade height at the current radial location";
+   }
+   real turning {
+      value = 0.; units = RAD;
+      description = "Amount of angular turning of the flow across this blade segment";
+   }
+   real Vslip {
+      value = 0.; units = FT_PER_SEC;
+      description = "Slip velocity of the flow exiting this blade segment";
+   }
+   real VthetaIdeal {
+      value = 0.; units = FT_PER_SEC;
+      description = "Ideal absolute tangential velocity for flow following the blade angle";
+   }
+   real VthetaRelIdeal {
+      value = 0.; units = FT_PER_SEC;
+      description = "Ideal relative tangential velocity for flow following the blade angle";
+   }
+
+   real radEqCorrection {
+      value = 0.; IOstatus = INPUT; units = NONE; //LBF_PER_LBM;
+      description = "Correction term to radial equilbrium";
+   }
+
+
+   int firstPass = TRUE;  // flag used for an initial guess at exit conditions
+   string S_Losses[];     // list of all the loss subElements in the BladeRow
+
+   Option switchDes {
+      allowedValues = { "DESIGN", "OFFDESIGN" };
+      description = "Design/Offdesign switch";
+      IOstatus = INPUT;
+      rewritableValues = FALSE;
+   }
+   // BLADEROW does nothing (user can input incidence via blade row socket)
+   // REFERENCE sets incidence to the reference incidence, iRef
+   // MIN_LOSS sets incidence to the minimum profile loss incidence, iMin
+   Option switchIncidence {
+      allowedValues = { "BLADEROW", "REFERENCE", "MIN_LOSS" };
+      description = "switch to set the blade segment incidence at design";
+      trigger = FALSE;
+   }
+
+   Option switchBackPressure {
+      allowedValues = { "INPUT_FLOW", "INPUT_PS" };
+      description = "Option to run to a target back pressure";
+   }
+
+   //-------------------------------------------------------------------------
+   //  +++++++++  SET UP PORTS, FLOW STATIONS, SOCKETS, AND TABLES  +++++++++
+   //-------------------------------------------------------------------------
+
+   // PORTS
+   FluidInputPort Fl_I {
+      description = "Inlet fluid port";
+   }
+   FluidOutputPort Fl_O {
+      description = "Exit fluid port";
+   }
+
+   // FLOW STATIONS
+   FlowStation Fs_ideal {
+      description = "Ideal exit state used to obtain ideal dH from actual PR";
+   }
+   FlowStation Fs_ideal2 { 
+      description = "Ideal exit state used to obtain ideal PR from actual dH"; 
+   }
+   FlowStation Fl_IR {
+      description = "Relative incoming flow conditions";
+   }
+   FlowStation Fl_OR {
+      description = "Relative exiting flow conditions";
+   }
+   FlowStation Fs_rothIn {
+      description = "Entrance reference state based on entrance rothalpy";
+   }
+   FlowStation Fs_rothOut { 
+      description = "Exit reference state based on exit rothalpy"; 
+   }
+
+   // SOCKETS
+   Socket S_Stall {
+      description = "Socket for a blade segment stall subelement";
+   }
+   Socket S_Choke {
+      description = "Socket for a blade segment choke subelement";
+   }
+   Socket S_Deviation {
+      allowedValues = { "deviation" };
+      //argTypes = { "real" };
+      //returnType = "real";
+      description = "deviation angle as a function of stuff";
+      socketType = "DEVANG";
+   }
+   Socket S_Blockage { 
+      allowedValues = { "blockage" };
+    //argTypes = { "real" };
+    //returnType = "real";
+      description = "flow blockage radial variation socket";
+      socketType = "BLOCKAGE1";
+   }
+
+   // TABLES
+
+
+   //-------------------------------------------------------------------------
+   //  ++++++  SET UP INTERNAL SOLVER, INDEPENDENTS, AND DEPENDENTS  ++++++
+   //-------------------------------------------------------------------------
+   Independent ind_htOut {
+      varName = "htExit";
+      autoSetup = TRUE;   // FALSE for NON_ROTATING
+      initXFunction = "xModel + 20.0"; // for Thermpackages where h crosses zero
+      xMappingFunction = "x - 20.0";
+      //dxLimit = 0.10;
+      description = "Varies the exit enthalpy";
+   }
+   Independent ind_PtOut {
+      varName = "PR";
+      autoSetup = TRUE;
+      description = "Varies the actual pressure ratio";
+   }
+   Independent ind_MNout {
+      varName = "MNexit";
+      autoSetup = TRUE;
+      description = "Varies the exit Mach Number";
+   }
+   Independent ind_alphaOut {
+      varName = "alphaExit";
+      indepRef = "PI/2.";
+      autoSetup = TRUE;
+      initXFunction = "xModel + 0.25"; // alpha may approach zero, 
+      xMappingFunction = "x - 0.25";   // particularly for stators
+      description = "Varies the exit flow angle";
+   }
+   Independent ind_radiusOut {
+      varName = "radiusExit";
+      autoSetup = TRUE;
+      description = "Varies the exit flow radius";
+   }
+   Independent ind_dev {
+      varName = "deviationGuess";
+      autoSetup = TRUE;
+      initXFunction = "xModel + 0.50"; // deviation will be zero if no subelement 
+      xMappingFunction = "x - 0.50";
+      description = "Varies the guessed value of deviation";
+   }
+   Independent ind_inc {
+      varName = "incidenceGuess";
+      autoSetup = TRUE;
+      indepRef = "0.035";
+      dxLimit = 1.0;  // TODO: find out why this has to be so large ???
+      //initXFunction = "xModel + 0.25"; // incidence is near zero 
+      //xMappingFunction = "x - 0.25";
+      
+      description = "Varies the guessed value of incidence";
+   }
+
+   Dependent dep_Euler {
+      eq_lhs = "( Fl_OR.Vtheta*Fl_OR.U - Fl_IR.Vtheta*Fl_IR.U )";
+      eq_rhs = "(Fl_OR.ht - Fl_IR.ht)*GRAVITY*JOULES_CONST";
+      autoSetup = TRUE;    // FALSE for NON_ROTATING
+      description = "Force the enthalpy change to match the Euler equation";
+   }
+   Dependent dep_PtRealOut {
+      eq_lhs = "lossEstimated";
+      eq_rhs = "lossActual"; 
+      eq_Ref = "0.10";
+      tolerance = 0.001;  // 1e-4 is too tight for real loss models
+      autoSetup = TRUE;
+      description = "Force exit pressure to match ideal pressure minus losses";
+   }
+   Dependent dep_DESIGN_InputDistribution {
+      eq_lhs = "desiredVariable";
+      eq_rhs = "targetValue"; 
+      autoSetup = TRUE;
+      description = "Force the desired variable to the specified distribution";
+   }
+   Dependent dep_OFFDESIGN_Alpha {
+      eq_lhs = "-Fl_OR.beta"; // "flowAngleOut";
+      eq_rhs = "flowAngleOut"; // "bladeExitAngle + deviation";
+      eq_Ref = "PI/4.";  // necessary when driving alpha to zero ?
+      autoSetup = FALSE;
+      description = "Force the flow exit angle to match the blade exit angle plus estimated deviation";
+   }
+   Dependent dep_DESIGN_Deviation {
+      eq_lhs = "deviationGuess";
+      eq_rhs = "deviation";
+      eq_Ref = "PI/4.";
+      autoSetup = TRUE;
+      description = "Force the guessed deviation to the predicted deviation";
+   }
+   Dependent dep_DESIGN_Incidence {
+      eq_lhs = "incidenceGuess";
+      eq_rhs = "incidence"; // "incidenceSet";
+      eq_Ref = "PI/8.";
+      autoSetup = TRUE;
+      description = "Force the guessed incidence to the desired incidence";
+   }
+
+   SecantSolver iterPT {
+      description = "solver for ideal total pressure for a given exit enthalpy";
+      maxDx = 0.25;
+      tolerance = 1.E-5;
+      perturbSize = 0.10;
+      maxIters = 25;
+   }
+
+
+   //-------------------------------------------------------------------------
+   //                ++++++++++  SET UP FUNCTIONS  ++++++++++
+   //-------------------------------------------------------------------------
+
+   // function to keep track of all the loss models that have been added
+   void postcreate( string name ) {
+      if ( name->hasInterface( "OTACLossModel" ) ) {
+         S_Losses.append( name ); // add it to the list
+      }
+   }
+
+
+   // allow for the user to specify the design value of any variable along the span
+   void VCinit() {
+      if ( switchSpanwiseInput == "CUSTOM" ) {
+         dep_DESIGN_InputDistribution.eq_lhs = custom_in;
+      }
+   }
+
+
+   //-------------------------------------------------------------------------
+   //          ++++++++++  VARIABLE CHANGED METHODOLOGY  ++++++++++
+   //-------------------------------------------------------------------------
+   void variableChanged( string name, any oldVal ) {
+      if ( name == "switchDes" ) {
+         if ( parent.switchRotate == "NON_ROTATING" ) {
+            ind_htOut.autoSetup = FALSE;
+            dep_Euler.autoSetup = FALSE;
+         }
+         if ( switchDes == "OFFDESIGN" ) {
+            dep_DESIGN_InputDistribution.autoSetup = FALSE;
+            dep_OFFDESIGN_Alpha.autoSetup = TRUE;
+            ind_dev.autoSetup = FALSE;
+            dep_DESIGN_Deviation.autoSetup = FALSE;
+            ind_inc.autoSetup = FALSE;
+            dep_DESIGN_Incidence.autoSetup = FALSE;
+         }
+      }
+      if ( name == "switchBackPressure" && switchBackPressure == "INPUT_PS" ) {
+         ind_MNout.autoSetup = FALSE;
+         ind_alphaOut.autoSetup = FALSE;
+         dep_OFFDESIGN_Alpha.autoSetup = FALSE;
+      }
+   }
+
+   void calculate() {
+
+      //------------------------------------------------------------
+      // determine omega and set relative inlet conditions
+      //------------------------------------------------------------
+      Fl_IR.copyFlow( "Fl_I" );
+      radiusInlet = Fl_I.radius;
+      Fl_IR.radius = Fl_I.radius; 
+
+      if ( parent.switchRotate == "ROTATING" ) { 
+         Fl_IR.omega = parent.Sh_O.Nmech * C_RPMtoRAD_PER_SEC; 
+      }
+      else { 
+         Fl_IR.omega = 0.;
+         PRideal = 1.0;
+      }
+
+      Fl_IR.setVs_alphaPhiMN( Fl_I.alpha, Fl_I.phi, Fl_I.MN );
+
+
+      //------------------------------------------------------------
+      // set the initial guesses for the exit conditions 
+      // OTAC function guessBRvalues( rowname, alpha, MN, PR, dh )
+      // may also be called by the user
+      //------------------------------------------------------------
+      if ( firstPass == TRUE ) { 
+
+         radiusExit = Fl_I.radius;
+         htExit = Fl_I.ht + dhGuess;
+
+         firstPass = FALSE; 
+      } 
+
+      if ( parent.switchRotate == "ROTATING" ) { 
+         Fs_ideal.omega = parent.Sh_O.Nmech * C_RPMtoRAD_PER_SEC; 
+         Fs_ideal2.omega = parent.Sh_O.Nmech * C_RPMtoRAD_PER_SEC; 
+         Fl_OR.omega = parent.Sh_O.Nmech * C_RPMtoRAD_PER_SEC; 
+      }
+      else { 
+         Fs_ideal.omega = 0.;
+         Fs_ideal2.omega = 0.; 
+         Fl_OR.omega = 0.;
+         htExit = Fl_I.ht;
+      }
+
+      // this probably won't work because % span isn't known yet
+      // also won't work for radial devices - fix this
+      if ( !S_PHIvR.isEmpty() ) {
+         phiExit = S_PHIvR( percentLEspan )*C_DEGtoRAD;
+      } 
+      else { 
+         phiExit = Fl_I.phi;
+      } 
+
+
+      //------------------------------------------------------------
+      // set the exit conditions based on current variable values
+      //------------------------------------------------------------
+      Fl_OR.copyFlow( "Fl_I" );
+      Fl_OR.radius = radiusExit;
+      Fl_OR.setTotal_hP( htExit, Fl_IR.Pt*PR ); 
+      Fl_OR.setVs_alphaPhiMN( alphaExit, phiExit, MNexit );
+
+
+      //------------------------------------------------------------
+      // calculate ideal exit conditions based on actual PR or actual dH
+      //------------------------------------------------------------
+      Fs_ideal.copyFlow( "Fl_I" );
+      Fs_ideal.radius = radiusExit;
+      Fs_ideal.setTotalSP( Fl_IR.entropy, Fl_IR.Pt*PR );
+      Fs_ideal.setVs_alphaPhiMN( alphaExit, phiExit, MNexit );
+
+      // ideal PR calculation, setTotal_hS not supported by Janaf
+      if ( THERMPACKAGE == "Janaf" ) { 
+         Fs_ideal2.copyFlow( "Fl_I" );
+         Fs_ideal2.radius = radiusExit;
+         PRideal = 1.30;
+         iterPT.initialize( PRideal );
+         do {
+            //cout << "PR ideal = " << PRideal << endl;
+            Fs_ideal2.setTotalSP( Fl_IR.entropy, Fl_IR.Pt*PRideal );
+            Fs_ideal2.setVs_alphaPhiMN( alphaExit, phiExit, MNexit );
+            PRideal = iterPT.iterate( ( Fs_ideal2.ht - htExit )/ htExit );
+         } while ( !( iterPT.isConverged() ) && !( iterPT.errorType ) );
+      } 
+      else { 
+         Fs_ideal2.copyFlow( "Fl_I" );
+         Fs_ideal2.radius = radiusExit;
+         Fs_ideal2.setTotal_hS( htExit, Fl_IR.entropy );
+         Fs_ideal2.setVs_alphaPhiMN( alphaExit, phiExit, MNexit );
+         PRideal = Fs_ideal2.Pt / Fl_IR.Pt ;
+      } 
+
+
+      //------------------------------------------------------------
+      // calculate entrance and exit conditions based on rothalpy
+      // this is used as the basis for turbine loss models
+      //------------------------------------------------------------
+      rothalpyInlet = Fl_IR.ht - Fl_IR.U*Fl_IR.Vtheta/(GRAVITY*JOULES_CONST);
+      rothalpyExit  = Fl_OR.ht - Fl_OR.U*Fl_OR.Vtheta/(GRAVITY*JOULES_CONST);
+
+      real PRtemp;
+      // TODO: change copyflow statement to allow for mass and composition change
+      // rothalpy PR calculation, setTotal_hS not supported by Janaf
+      if ( THERMPACKAGE == "Janaf" ) { 
+         Fs_rothIn.copyFlow( "Fl_I" );
+         Fs_rothIn.radius = radiusInlet;
+         PRtemp = 0.825;
+         iterPT.initialize( PRtemp );
+         do {
+            //cout << "rothalpy PR in = " << PRtemp << endl;
+            Fs_rothIn.setTotalSP( Fl_IR.entropy, Fl_IR.Pt*PRtemp );
+            Fs_rothIn.setVs_alphaPhiMN( Fl_IR.alpha, Fl_IR.phi, Fl_IR.MN );
+            PRtemp = iterPT.iterate( ( Fs_rothIn.ht - rothalpyInlet )/ rothalpyInlet );
+         } while ( !( iterPT.isConverged() ) && !( iterPT.errorType ) );
+         
+         Fs_rothOut.copyFlow( "Fl_I" );
+         Fs_rothOut.radius = radiusExit;
+         PRtemp = 0.825;
+         iterPT.initialize( PRtemp );
+         do {
+            //cout << "rothalpy PR out = " << PRtemp << endl;
+            Fs_rothOut.setTotalSP( Fl_OR.entropy, Fl_IR.Pt*PRtemp );
+            Fs_rothOut.setVs_alphaPhiMN( Fl_OR.alpha, Fl_OR.phi, Fl_OR.MN );
+            PRtemp = iterPT.iterate( ( Fs_rothOut.ht - rothalpyExit )/ rothalpyExit );
+         } while ( !( iterPT.isConverged() ) && !( iterPT.errorType ) );
+      } 
+      else { 
+         Fs_rothIn.copyFlow( "Fl_I" );
+         Fs_rothIn.radius = Fl_IR.radius;
+         Fs_rothIn.setTotal_hS( rothalpyInlet, Fl_IR.entropy );
+         Fs_rothIn.setVs_alphaPhiMN( Fl_IR.alpha, Fl_IR.phi, Fl_IR.MN );
+         
+         Fs_rothOut.copyFlow( "Fl_I" );
+         Fs_rothOut.radius = Fl_OR.radius;
+         Fs_rothOut.setTotal_hS( rothalpyExit, Fl_OR.entropy );
+         Fs_rothOut.setVs_alphaPhiMN( Fl_OR.alpha, Fl_OR.phi, Fl_OR.MN );
+      } 
+
+
+      //------------------------------------------------------------
+      // determine the percent blade heights
+      //------------------------------------------------------------
+      // note: UBC for radiusHub and radiusTip so initial values in 
+      // BladeRow are important - SMJ
+      percentLEspan =  ( Fl_IR.radius - radiusHubInlet ) / 
+                       ( radiusTipInlet - radiusHubInlet ); 
+      percentTEspan =  ( Fl_OR.radius - radiusHubExit ) / 
+                       ( radiusTipExit - radiusHubExit ); 
+
+
+      //------------------------------------------------------------
+      // get pitch, chord length, solidity, and other common geometric
+      // variables which impact losses and deviation
+      //
+      // if the radial variation table does not exist, use the 'name_in'
+      // variable value (e.g., chord_in) in the geometry socket; otherwise
+      // use radius as the table or function argument 
+      //------------------------------------------------------------
+      if ( !S_Geometry.isEmpty() ) {
+         currentSegment = parent.getName();
+         S_Geometry.execute();
+      } 
+      else { 
+         solidity = chord / (PI*(radiusInlet+radiusExit)/numberOfBlades);
+      }
+
+
+      //------------------------------------------------------------
+      // incidence and deviation
+      //------------------------------------------------------------
+      if ( switchDes == "DESIGN" ) { 
+         if ( !S_INCIDENCEvR.isEmpty() ) {
+            incidence = S_INCIDENCEvR( percentLEspan )*C_DEGtoRAD;
+         } 
+         else if ( switchIncidence=="MIN_LOSS" || switchIncidence=="REFERENCE" ) {
+            // incidence set directly in loss subelement
+         }
+         else { 
+            incidence = incidence_in*C_DEGtoRAD;
+         } 
+
+         incidenceDes = incidence;  // this should really be saved as f(radius) - SMJ
+         if ( switchBladeAngleSign == "POSITIVE" ) {
+            bladeInletAngle = -Fl_IR.beta + incidenceGuess;
+            bladeExitAngle  = -Fl_OR.beta + deviationGuess;
+         } 
+         else {
+            bladeInletAngle = -Fl_IR.beta - incidenceGuess;
+            bladeExitAngle  = -Fl_OR.beta - deviationGuess;
+         } 
+      } 
+      else { 
+         // positive rotation will increase incidence
+         if ( switchBladeAngleSign == "POSITIVE" ) {
+            bladeInletAngle = TB_BladeInletAngle( radiusInlet ) + rotation;
+            bladeExitAngle = TB_BladeExitAngle( radiusExit ) + rotation;
+            incidence = Fl_IR.beta + bladeInletAngle; 
+          //deviation = Fl_OR.beta + bladeExitAngle;  // enforced at off-design through balance
+            flowAngleOut = bladeExitAngle - deviation;
+         }
+         else { 
+            bladeInletAngle = TB_BladeInletAngle( radiusInlet ) - rotation;
+            bladeExitAngle = TB_BladeExitAngle( radiusExit ) - rotation;
+            incidence = -Fl_IR.beta - bladeInletAngle; 
+          //deviation = -Fl_OR.beta - bladeExitAngle;  // enforced at off-design through balance
+            flowAngleOut = bladeExitAngle + deviation;
+         } 
+      } 
+
+      // this is a UBC at design
+      if ( !S_Deviation.isEmpty() ) { 
+         S_Deviation.execute();
+      } 
+      else { 
+//       deviation = deviation_in;
+      } 
+
+      camber = abs( bladeInletAngle - bladeExitAngle );
+      
+
+
+      //------------------------------------------------------------
+      // determine the diffusion factor and other performance variables
+      //------------------------------------------------------------
+
+      ReynoldsNumber = Fl_OR.rhos*Fl_OR.V*(chord/12.)/Fl_OR.mus;
+
+      // note: certain sources incorrectly imply (or explicity state, Aungier) 
+      // that the Vtheta term in D-factor is ( Vtheta1 - Vtheta2 )
+      //diffusionFactor = 1. - Fl_OR.Vrel/Fl_IR.Vrel + 
+      //       ( Fl_OR.Vtheta - Fl_IR.Vtheta )/( 2.*solidity*Fl_IR.Vrel );
+
+      // DF for flows with radius change
+      if ( parent.switchRotate == "ROTATING" ) { 
+         diffusionFactor = 1. - Fl_OR.Vrel/Fl_IR.Vrel + 
+             ( radiusExit*Fl_OR.Vtheta - radiusInlet*Fl_IR.Vtheta )/
+             ( 2.*solidity*Fl_IR.Vrel*( radiusInlet + radiusExit )/2. );
+      }
+      else {  // stators
+         diffusionFactor = 1. - Fl_OR.Vrel/Fl_IR.Vrel - 
+             ( radiusExit*Fl_OR.Vtheta - radiusInlet*Fl_IR.Vtheta )/
+             ( 2.*solidity*Fl_IR.Vrel*( radiusInlet + radiusExit )/2. );
+      }
+
+      deHaller = Fl_OR.Vrel / Fl_IR.Vrel;
+
+      deflection = Fl_IR.beta - Fl_OR.beta;
+      turning = deflection;
+
+    //PtLossActual = Fs_ideal2.Pt - Fl_OR.Pt;
+      PtLossActual = (Fl_IR.Pt - Fl_OR.Pt) / (Fl_IR.Pt - Fl_IR.Ps);
+
+      PtLossTurb_alt = (Fl_IR.PtRel - Fl_OR.PtRel) / (Fl_OR.PtRel - Fl_OR.Ps);
+      // allow for radius change in turbine loss parameter
+      PtLossTurb   = (Fs_rothIn.Pt - Fs_rothOut.Pt) / (Fl_OR.PtRel - Fl_OR.Ps);
+
+      
+      pwrBladeSegment = Fl_IR.W * ( Fl_IR.ht - Fl_OR.ht ) * C_BTU_PER_SECtoHP;
+
+      omegaBar = (Fs_ideal2.PtRel - Fl_OR.PtRel) / (Fl_IR.PtRel - Fl_IR.Ps );
+
+      lossParameter = omegaBar * cos( Fl_OR.beta ) / (2.*solidity) ;
+
+      AVDR = ( Fl_OR.rhos*Fl_OR.Vz ) / ( Fl_IR.rhos*Fl_IR.Vz );
+
+      VthetaRelIdeal = Fl_OR.Vm * tan( -bladeExitAngle );
+      VthetaIdeal = Fl_OR.U - VthetaRelIdeal;
+      Vslip = Fl_OR.VthetaRel - VthetaRelIdeal;
+    //Vslip = VthetaIdeal - Fl_OR.Vtheta;
+      if ( parent.switchRotate == "ROTATING" ) { 
+         slipFactor = 1. - Vslip/Fl_OR.U;   // alternate def: Fl_OR.Vtheta/VthetaIdeal
+      }
+
+
+      segmentEff = 1.;  // non-rotating
+      if ( parent.switchRotate == "ROTATING" ) { 
+         flowCoefficient = Fl_IR.Vm / Fl_IR.U;
+
+         // compressor
+         if ( Fl_OR.ht > Fl_IR.ht ) {
+            segmentEff = ( Fs_ideal.ht - Fl_IR.ht )/( Fl_OR.ht - Fl_IR.ht );
+
+            loadingCoefficient = ( Fl_OR.ht - Fl_IR.ht ) * JOULES_CONST*GRAVITY / 
+                      ( (Fl_IR.U + Fl_OR.U)/2. )**2.;
+         }
+         else {  // turbine
+            segmentEff = ( Fl_IR.ht - Fl_OR.ht )/( Fl_IR.ht - Fs_ideal.ht );
+
+            loadingCoefficient = ( Fl_IR.ht - Fl_OR.ht ) * JOULES_CONST*GRAVITY / 
+                      ( (Fl_IR.U + Fl_OR.U)/2. )**2.;
+         }
+      }
+
+
+      //------------------------------------------------------------
+      // if the sockets for stall or choke are there, execute them
+      //------------------------------------------------------------
+      if ( !S_Stall.isEmpty() ) { S_Stall.execute(); }
+      if ( !S_Choke.isEmpty() ) { S_Choke.execute(); }
+
+
+      //------------------------------------------------------------
+      // set the basis for loss used as part of the dependent condition
+      // then execute the loss sockets: note these sockets are additive
+      //------------------------------------------------------------
+      if ( parent.switchLossBasis == "PTOT" ) { 
+         lossActual = PtLossActual;
+      } 
+      else if ( parent.switchLossBasis == "TURBINE" ) { 
+         lossActual = PtLossTurb;
+      } 
+      else if ( parent.switchLossBasis == "TURBINE_ALT" ) { 
+         lossActual = PtLossTurb_alt;
+      } 
+      else if ( parent.switchLossBasis == "PTOTREL" ) { 
+         lossActual = omegaBar;
+      } 
+      else {
+         lossActual = segmentEff;
+      } 
+
+
+      // execute each loss subelement in this blade segment and sum their
+      // respective losses; if no loss models are used, then use the value
+      // from the blade row that was input by the user, loss_in
+      int i, lossSocketCount;
+      lossSocketCount = S_Losses.entries();
+
+      if ( lossSocketCount > 0 ) { 
+         lossEstimated = 0;
+         for ( i=0; i<lossSocketCount; ++i ) {
+            S_Losses[i]->execute();
+            lossEstimated += S_Losses[i]->lossReturned;
+         } 
+      }
+      else {
+         lossEstimated = loss_in;
+      } 
+
+      //------------------------------------------------------------
+      // custom correction to the radial equilbrium equation
+      //------------------------------------------------------------
+      if ( !S_RadEq.isEmpty() ) {
+         radEqCorrection = S_RadEq( percentLEspan );
+      } 
+
+
+      //------------------------------------------------------------
+      // set target for the DESIGN point input profile
+      //------------------------------------------------------------
+      if ( switchSpanwiseInput == "PR" ) { 
+         desiredVariable = Fl_OR.Pt / Fl_IR.Pt ;
+      }
+      if ( switchSpanwiseInput == "ALPHA" ) { 
+         desiredVariable = Fl_OR.alpha/C_DEGtoRAD;
+      } 
+      if ( switchSpanwiseInput == "WORK" ) { 
+         desiredVariable = Fl_IR.ht - Fl_OR.ht;
+      } 
+
+      if ( !S_INPUTvR.isEmpty() ) {
+         targetValue = S_INPUTvR( percentLEspan );
+      }
+      else {
+         targetValue = input_in;
+      }
+
+
+      //------------------------------------------------------------
+      // set the exit conditions
+      //------------------------------------------------------------
+      Fl_O.copyFlowStatic( "Fl_OR" );
+      Fl_O.radius = Fl_OR.radius; 
+      Fl_O.omega = 0.;
+      Fl_O.setVs_alphaPhiMN( Fl_OR.alpha, Fl_OR.phi, Fl_OR.MN );
+
+      // blockage-adjusted radii
+      if ( !S_Blockage.isEmpty() ) {
+         S_Blockage.execute();
+         // if blockage = 1 throw error
+      } 
+      else { 
+         blockage = blockage_in;
+      } 
+
+
+      areaGeom = Fl_O.area / (1. - blockage);
+      real spanGeom = areaGeom /(2.*PI*Fl_O.radius);
+      radiusOuterBlk = Fl_O.radius + 0.5*spanGeom*cos( Fl_OR.phi );
+      radiusInnerBlk = Fl_O.radius - 0.5*spanGeom*cos( Fl_OR.phi );
+
+   }  // end calculate
+
+}
+

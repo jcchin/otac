@@ -1,0 +1,283 @@
+//
+//=============================================================================
+//                                    OTAC
+//                Object-Oriented Turbomachinery Analysis Code
+//
+//     written by: Justin S. Gray, Scott M. Jones, and Thomas M. Lavelle
+//
+//=============================================================================
+
+#include <InterpIncludes.ncp>
+
+
+class BladeGeometry extends Subelement {
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++   DOCUMENTATION   ++++++++++
+   //-------------------------------------------------------------------------
+   title = "";
+
+   description = isA()+ " calculates common geometric parameters associated
+   with turbomachinery blade rows. ";
+
+   usageNotes = isA() + " can be added to each BladeRow in a model file. 
+   This subelement expects tables or functions of blade geometric 
+   parameters as a function of radius. If a table/function is not provided,
+   this subelement will use a single value for each blade segment; this
+   value can be changed by the user inside the subelement instantation. The
+   local parameters calculated in this subelement are effectively temporary,
+   being used to set the appropriate values in the current BladeSegment 
+   before being re-calculated for the next BladeSegment.";
+
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++  SET UP VARIABLES  ++++++++++
+   //-------------------------------------------------------------------------
+   real aqc_in {
+      value = 0.1; units = NONE;
+      description = "Ratio of the location of blade maximum thickness to chord length";
+   }
+   real bladeRc_in {
+      value = 3.00; units = INCH;
+      description = "Radius of curvature of the aft-end of the blade convex surface";
+   }
+   real chord_in {
+      value = 1.0; IOstatus = OUTPUT; units = INCH;
+      description = "Chord length";
+   }
+   real opening_in {
+      value = 1.; IOstatus = INPUT; units = INCH;
+      description = "Perpendicular distance from blade trailing edge to suction surface of adjacent blade";
+   }
+   real staggerAngle_in {
+      value = 0; IOstatus = INPUT; units = RAD;
+      description = "Blade stagger angle";
+   }
+   real TEthickness_in {
+      value = 0; IOstatus = INPUT; units = INCH;
+      description = "Blade trailing edge thickness";
+   }
+   real thicknessToChord_in {
+      value = 0; IOstatus = INPUT; units = NONE;
+      description = "Blade maximum thickness to chord ratio";
+   }
+   real tipClearance_in {
+      value = 0; IOstatus = INPUT; units = INCH;
+      description = "Tip clearance";
+   }
+
+
+   Option switchDes {
+      allowedValues = { DESIGN, OFFDESIGN };
+      description = "Design mode switch indicator [ DESIGN / OFFDESIGN]";
+      rewritableValues = FALSE;  // Enables converter optimization.
+   }
+
+
+   //-------------------------------------------------------------------------
+   //  +++++++++  SET UP PORTS, FLOW STATIONS, SOCKETS, AND TABLES  +++++++++
+   //-------------------------------------------------------------------------
+
+   // SOCKETS
+   addInterface( "BLADEGEOM" );
+   socketRequired = 0;
+
+   Socket S_CHORDvR {
+      //allowedValues = { "chord" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "blade chord length as a function of radius";
+      socketType = "Function";
+   }
+   Socket S_OqSvR {
+      //allowedValues = { "openingToPitch" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "ratio of blade opening to pitch as a function of radius";
+      socketType = "Function";
+   }
+   Socket S_RCvR {
+      //allowedValues = { "bladeRc" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "blade surface aft-end radius of curvature as a function of radius";
+      socketType = "Function";
+   }
+   Socket S_TE_THKvR {
+      //allowedValues = { "TEthickness" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "blade trailing edge thickness as a function of radius";
+      socketType = "Function";
+   }
+   Socket S_THKqCvR {
+      //allowedValues = { "thicknessToChord" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "ratio of blade maximum thickness to chord length as a function of radius";
+      socketType = "Function";
+   }
+   Socket S_THK_LOCqCvR {
+      //allowedValues = { "aqc" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "ratio of the location of blade maximum thickness to chord length as a function of radius";
+      socketType = "Function";
+   }
+   Socket S_ZETAvR {
+      //allowedValues = { "staggerAngle" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "blade stagger angle as a function of radius";
+      socketType = "Function";
+   } 
+
+
+
+   //-------------------------------------------------------------------------
+   //          ++++++++++  VARIABLE CHANGED METHODOLOGY  ++++++++++
+   //-------------------------------------------------------------------------
+   void variableChanged( string name, any oldVal ) {
+      if ( name=="switchDes" ) {
+         // do nothing
+      }
+   }
+
+
+   //-------------------------------------------------------------------------
+   //         ++++++++++ PERFORM ENGINEERING CALCULATIONS ++++++++++
+   //-------------------------------------------------------------------------
+   void calculate() {
+
+      // declare local variables
+      real aqc_local;
+      real axialChord_local;
+      real bladeRc_local;
+      real chord_local;
+      real opening_local;
+      real openingToPitch_local;
+      real pitch_local;
+      real pitchToChord_local;
+      real solidity_local;
+      real staggerAngle_local;
+      real TEthickness_local;
+      real TEthicknessToPitch_local;
+      real thicknessToChord_local;
+      real tipClearance_local;
+      real tipClearanceToBladeHeight_local;
+
+      // values needed from the current blade segment
+      // TODO: add option var that sets radius and % span based on leading 
+      // edge, trailing edge, or average
+      real percentSpan = currentSegment->percentLEspan;
+      real radius = currentSegment->radiusInlet;
+
+      // TODO: add option for circular arc calculation of stagger angle
+      // stagger = ( bladeInletAngle + bladeExitAngle )/2.;  // circular arc camber line
+
+
+      //------------------------------------------------------------
+      // calculate geometry parameters based on inputs
+      //------------------------------------------------------------
+
+      // pitch
+      pitch_local = 2.*PI*radius / numberOfBlades;
+
+
+      // chord
+      if ( S_CHORDvR.isEmpty() ) {
+         chord_local = chord_in;
+      } 
+      else { 
+         chord_local = S_CHORDvR( percentSpan );
+      } 
+      pitchToChord_local = pitch_local / chord_local;
+      solidity_local = chord_local / pitch_local;
+
+
+      // tip clearance  (note: bladeHeight comes from BladeRow parent)
+      tipClearance_local = tipClearance_in;
+      tipClearanceToBladeHeight_local = tipClearance_in / bladeHeight;
+
+
+      // maximum thickness to chord
+      if ( S_THKqCvR.isEmpty() ) {
+         thicknessToChord_local = thicknessToChord_in;
+      } 
+      else { 
+         thicknessToChord_local = S_THKqCvR( percentSpan );
+      } 
+
+
+      // opening to pitch
+      if ( S_OqSvR.isEmpty() ) {
+         opening_local = opening_in;
+         openingToPitch_local = opening_local / pitch_local;
+      } 
+      else { 
+         openingToPitch_local = S_OqSvR( percentSpan );
+         opening_local = openingToPitch_local * pitch_local;
+      } 
+
+
+      // trailing edge thickness
+      if ( S_TE_THKvR.isEmpty() ) {
+         TEthickness_local = TEthickness_in;
+      } 
+      else { 
+         TEthickness_local = S_TE_THKvR( percentSpan );
+      } 
+      TEthicknessToPitch_local = TEthickness_local / pitch_local;
+
+
+      // blade surface radius of curvature
+      if ( S_RCvR.isEmpty() ) {
+         bladeRc_local = bladeRc_in;
+      } 
+      else { 
+         bladeRc_local = S_RCvR( percentSpan );
+      } 
+
+
+      // stagger angle
+      if ( S_ZETAvR.isEmpty() ) {
+         staggerAngle_local = staggerAngle_in;
+      } 
+      else { 
+         staggerAngle_local = S_ZETAvR( percentSpan );
+      } 
+      axialChord_local = chord_local * cos( staggerAngle_local );
+
+
+      // location of maximum thickness to chord
+      if ( S_THK_LOCqCvR.isEmpty() ) {
+         aqc_local = aqc_in;
+      } 
+      else { 
+         aqc_local = S_THK_LOCqCvR( percentSpan );
+      } 
+
+
+      //------------------------------------------------------------
+      // set values in the current blade segment
+      //------------------------------------------------------------
+      currentSegment->pitch = pitch_local;
+      currentSegment->chord = chord_local;
+      currentSegment->pitchToChord = pitchToChord_local;
+      currentSegment->solidity = solidity_local;
+      currentSegment->tipClearance = tipClearance_local;
+      currentSegment->tipClearanceToBladeHeight = tipClearanceToBladeHeight_local;
+      currentSegment->thicknessToChord = thicknessToChord_local;
+      currentSegment->opening = opening_local;
+      currentSegment->openingToPitch = openingToPitch_local;
+      currentSegment->TEthickness = TEthickness_local;
+      currentSegment->TEthicknessToPitch = TEthicknessToPitch_local;
+      currentSegment->bladeRc = bladeRc_local;
+      currentSegment->staggerAngle = staggerAngle_local;
+      currentSegment->axialChord = axialChord_local;
+      currentSegment->aqc = aqc_local;
+
+
+   }  // end calculate
+}
+

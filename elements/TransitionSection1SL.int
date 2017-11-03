@@ -1,0 +1,350 @@
+//=============================================================================
+//                                    OTAC
+//                Object-Oriented Turbomachinery Analysis Code
+//
+//     written by: Justin S. Gray, Scott M. Jones, and Thomas M. Lavelle
+//
+//=============================================================================
+
+#include <InterpIncludes.ncp>
+
+
+class TransitionSection1 extends Assembly {
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++   DOCUMENTATION   ++++++++++
+   //-------------------------------------------------------------------------
+   title = "";
+
+   description = isA()+ " calculates the change in flow properties across
+   a duct of changing radius and area.  It is assumed that stagnation 
+   pressure and temperature are constant, along with mass flow rate. ";
+
+   usageNotes = isA() + " is used to represent slight changes in area and 
+   mean radius between blade rows in turbomachines.  The exit state of the 
+   flow from the transition section is determined by input of the exit flow 
+   mean radius and meridional area.  The exit total pressure, total 
+   temperature, and mass flow are set equal to the incoming flow Pt, Tt, and
+   W.  The exit tangential flow angle of each stream is varied to match the 
+   incoming product of tangential velocity and radius (i.e., free vortex 
+   flow).  The exit mean radius and exit Mach number are varied to match 
+   each streams' radii and enforce radial equillibrium, and to match the 
+   exit overall mean radius and meridional area inputs set by the user. ";
+
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++  SET UP VARIABLES  ++++++++++
+   //-------------------------------------------------------------------------
+   real areaExit_calc {
+      value = 100.; units = INCH2;
+      description = "Exit flow area";
+   }
+   real areaExit_in {
+      value = 100.; units = INCH2;
+      description = "Exit flow area";
+   }
+   real PtExit {
+      value = 0.; units = PSIA;
+      description = "Exit total pressure for this flow";
+   }
+   real radiusMean_calc {
+      value = 10.; units = INCH;
+      description = "Flow exit mean radius";
+   }
+   real radiusMean_in {
+      value = 10.; units = INCH;
+      description = "Flow exit mean radius";
+   }
+   real TtExit {
+      value = 0.; units = NONE;
+      description = "Exit total temperature for this flow";
+   }
+
+   real Vtheta2_q_r[25];  //  lbf/lbm
+   real dpdr_q_rho[25];   //  lbf/lbm
+   real alphaExit[25];
+   real radiusExit[25];
+   real MachExit[25];
+   real phiExit[25];
+
+
+   int firstPassTS = TRUE;  // flag used for an initial guess at exit conditions
+
+   int numberOfStreams {
+      value = 0; IOstatus = INPUT; units = NONE;
+      description = "Number of individual streamlines used in calculations";
+      //trigger = 1;
+   }
+
+   // internal variables
+   string globalDefaults = "OTACdefaults";
+   int nStreams_defaultFlag = 1;
+
+   string inPorts[], outPorts[];
+
+
+   //-------------------------------------------------------------------------
+   //  +++++++++  SET UP PORTS, FLOW STATIONS, SOCKETS, AND TABLES  +++++++++
+   //-------------------------------------------------------------------------
+
+   // PORTS
+   
+   // FLOWSTATIONS
+/*
+   // SOCKETS
+   Socket S_Avg {
+      allowedValues = {  };
+      description = "socket for streamline averaging";
+      socketType = "STREAM_AVG";
+   }
+*/
+   // TABLES
+
+
+   //-------------------------------------------------------------------------
+   //  ++++++  SET UP INTERNAL SOLVER, INDEPENDENTS, AND DEPENDENTS  ++++++
+   //-------------------------------------------------------------------------
+   Solver TSsolver {
+      defaultTolerance = 0.0001;
+      description = "local solver for this transition section";
+    //defaultDxLimit = 0.05;
+    //defaultPerturbation = 0.01;
+      maxIterations = 50;
+      maxJacobians = 100;
+   }
+
+   Dependent dep_area {
+      eq_lhs = "areaExit_calc";
+      eq_rhs = "areaExit_in";
+      autoSetup = TRUE;
+      description = "Force the area change to match user input";
+   }
+   Dependent dep_meanRadius {
+      eq_lhs = "radiusMean_calc";
+      eq_rhs = "radiusMean_in";
+      autoSetup = TRUE;
+      description = "Force the overall exit mean radius to match user input";
+   }
+/*
+   Independent ind_pt {
+      varName = "S_Avg.avgPt";
+      autoSetup = TRUE;
+   }
+   Independent ind_alfa {
+      varName = "S_Avg.avgAlpha";
+      autoSetup = TRUE;
+   }
+   Independent ind_mn {
+      varName = "S_Avg.avgMN";
+      autoSetup = TRUE;
+   }
+   Dependent dep_areaAVG {
+      eq_lhs = "S_Avg.average.area";
+      eq_rhs = "areaExit_in";
+      autoSetup = TRUE;
+   }
+   Dependent dep_tmAVG {
+      eq_lhs = "S_Avg.average.W*S_Avg.average.Vtheta";
+      eq_rhs = "S_Avg.totalTM";
+      autoSetup = TRUE;
+   }
+   Dependent dep_impAVG {
+      eq_lhs = "S_Avg.average.W*S_Avg.average.Vz/GRAVITY + S_Avg.average.Ps*S_Avg.average.area";
+      eq_rhs = "S_Avg.totalImp";
+      autoSetup = TRUE;
+   }
+*/
+   //-------------------------------------------------------------------------
+   //                ++++++++++  SET UP FUNCTIONS  ++++++++++
+   //-------------------------------------------------------------------------
+
+
+   //-------------------------------------------------------------------------
+   //          ++++++++++  VARIABLE CHANGED METHODOLOGY  ++++++++++
+   //-------------------------------------------------------------------------
+   void variableChanged( string name, any oldVal ) {
+
+   }
+
+
+   // create the fluid ports, indpendents, and dependents
+   void VCinit() {
+
+      //------------------------------------------------------------
+      // set the number of streams if the default flag is used
+      //------------------------------------------------------------
+      if ( nStreams_defaultFlag ) {
+         string varPointer = globalDefaults + ".numberOfStreams";
+         numberOfStreams = varPointer->value;
+      }
+
+      //------------------------------------------------------------
+      // create entrance and exit ports for each stream
+      //------------------------------------------------------------
+      string inPortName, outPortName;
+
+      int i;   // i=1 is the stream closest to the hub
+      for( i=1; i <= numberOfStreams; ++i ) {
+
+         inPortName = "Fl_I" + toStr(i);
+         create( "", "FluidInputPort", inPortName );
+         inPorts.append( inPortName );
+
+         outPortName = "Fl_O" + toStr(i);
+         create( "", "FluidOutputPort", outPortName );
+         outPorts.append( outPortName );
+
+         //---------------------------------------------------------
+         // create 3n independents (alpha, r, and MN for each 
+         // streamline) to go with this transition section
+         //---------------------------------------------------------
+         string indepname;
+
+         indepname = "ind_alpha" + toStr(i);
+         create( "", "Independent", indepname );
+         indepname->varName = "alphaExit[" + toStr(i-1) + "]";
+         indepname->autoSetup = TRUE;
+       //indepname->perturbationType = "ABSOLUTE";
+       //indepname->dxLimitType = "ABSOLUTE";
+         indepname->indepRef = "PI/2.";
+         indepname->initXFunction = "xModel + 0.25"; 
+         indepname->xMappingFunction = "x - 0.25";   // particularly for stators
+         indepname->description = "stream exit tangential flow angle";
+
+         indepname = "ind_radius" + toStr(i);
+         create( "", "Independent", indepname );
+         indepname->varName = "radiusExit[" + toStr(i-1) + "]";
+         indepname->autoSetup = TRUE;
+         indepname->description = "stream exit mean radius";
+
+         indepname = "ind_Mach" + toStr(i);
+         create( "", "Independent", indepname );
+         indepname->varName = "MachExit[" + toStr(i-1) + "]";
+         indepname->autoSetup = TRUE;
+         indepname->description = "stream exit Mach number";
+
+
+         //---------------------------------------------------------
+         // create n dependents to maintain r*Vtheta
+         //---------------------------------------------------------
+         string depname;
+
+         depname = "dep_freeVortex" + toStr(i);
+         create( "", "Dependent", depname );
+         depname->eq_lhs = outPortName+ ".radius * " + outPortName+ ".Vtheta";
+         depname->eq_rhs = inPortName + ".radius * " + inPortName + ".Vtheta";
+         //depname->tolerance = 0.001;
+         depname->autoSetup = TRUE;
+         depname->eq_Ref = "100.";
+         depname->description = "Match incoming stream r*Vtheta";
+
+         //---------------------------------------------------------
+         // create 2(n-1) dependents to go with the transition section
+         //---------------------------------------------------------
+
+         if ( i > 1 ) {
+
+            // dependent to match a segment's hub radius to the tip radius
+            // of the segment below it
+            depname = "dep_Rhub" + toStr(i) + "EqRtip" + toStr(i-1);
+            create( "", "Dependent", depname );
+            depname->eq_lhs = "Fl_O" + toStr(i) + ".radiusInner";
+            depname->eq_rhs = "Fl_O" + toStr(i-1) + ".radiusOuter";
+            //depname->tolerance = 0.001;
+            depname->autoSetup = TRUE;
+            depname->description = "Match blade segment radii to each other";
+
+            // dependent to satisfy radial equilibrium
+            depname = "dep_RadEq" + toStr(i-1);
+            create( "", "Dependent", depname );
+            depname->eq_lhs = "dpdr_q_rho[" + toStr(i-1) + "]";
+            depname->eq_rhs = "Vtheta2_q_r[" + toStr(i-1) + "]";
+            //depname->tolerance = 0.001;
+            depname->autoSetup = TRUE;
+            depname->eq_Ref = "100.";
+            depname->description = "Match radial equilibrium";
+
+         }
+
+      }
+
+      //------------------------------------------------------------
+      // do transition section calculations first, then station averaging
+      //------------------------------------------------------------
+      //solverSequence = {};
+      solverSequence.append( "calculations" );
+      //solverSequence.append( avgName );
+/*
+      //------------------------------------------------------------
+      // put a streamline averaging calculation in the assembly
+      //------------------------------------------------------------
+      string avgName;
+      avgName = parent.getName() + "avg";
+      create( "", "StationAvg", avgName );
+*/
+
+   }  // end VCinit
+
+
+   void calculations() {
+
+      string tmp_outport, tmp_inport;
+
+      int i;
+      for( i=0; i < numberOfStreams; ++i ) {
+         tmp_outport = outPorts[i];
+         tmp_inport  = inPorts[i];
+
+         // guess values for r, alpha, and MN for each stream on the first pass
+         if ( firstPassTS == TRUE ) { 
+            radiusExit[i] = tmp_inport->radius;
+            MachExit[i] = tmp_inport->MN;
+            alphaExit[i] = tmp_inport->alpha;
+         } 
+
+         tmp_outport->copyFlow( tmp_inport );
+         PtExit = tmp_inport->Pt;
+         TtExit = tmp_inport->Tt;
+
+         outPorts[i]->radius = radiusExit[i];
+         outPorts[i]->omega = 0.;
+         outPorts[i]->setTotalTP( TtExit, PtExit );
+         outPorts[i]->setVs_alphaPhiMN( alphaExit[i], phiExit[i], MachExit[i] );
+      } 
+
+      firstPassTS = FALSE;
+
+
+      // calculate the overall mean radius and area
+      string name1, name2;
+      name1 = "Fl_O1";
+      name2 = "Fl_O" + toStr( numberOfStreams );
+      radiusMean_calc =  ( name1->radiusInner + name2->radiusOuter ) / 2. ;
+      areaExit_calc = PI * ( name2->radiusOuter**2. - name1->radiusInner**2.  );
+
+      int n;
+      for ( n=1; n < numberOfStreams; ++n ) {
+
+         // for hub and tip streams use this
+         if (n==1 || n==(numberOfStreams-1) ) { 
+            dpdr_q_rho[n] = ( ( outPorts[n]->Ps - outPorts[n-1]->Ps )*1728.*2. ) / 
+                        ( outPorts[n]->radius - outPorts[n-1]->radius ) / 
+                        ( outPorts[n]->rhos + outPorts[n-1]->rhos );
+
+            Vtheta2_q_r[n] = ( ( (outPorts[n]->Vtheta + outPorts[n-1]->Vtheta)/2. )**2. )*(12./GRAVITY) / 
+                        ((outPorts[n]->radius + outPorts[n-1]->radius)/2. );
+
+         } else {
+            dpdr_q_rho[n] = ( ( outPorts[n+1]->Ps - outPorts[n-1]->Ps )*1728. ) / 
+                        ( outPorts[n+1]->radius - outPorts[n-1]->radius ) / 
+                        ( outPorts[n]->rhos );
+
+            Vtheta2_q_r[n] = ( (outPorts[n]->Vtheta)**2. )*(12./GRAVITY) / 
+                        (outPorts[n]->radius );
+
+         } 
+      }
+
+   }  // end calculations
+
+}

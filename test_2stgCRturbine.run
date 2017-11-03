@@ -1,0 +1,222 @@
+//
+//---------------------------------------------------------------------------
+//          OTAC test model of 2-stage counter-rotating turbine
+//
+//---------------------------------------------------------------------------
+
+
+//---------------------------------------------------------------------------
+//                          SET THE THERMO PACKAGE
+//---------------------------------------------------------------------------
+setThermoPackage( "Janaf" );
+//setThermoPackage("GasTbl");
+//setThermoPackage("allFuel");
+
+
+//---------------------------------------------------------------------------
+//                INCLUDE OTAC INTERPRETED ELEMENTS AND FILES
+//---------------------------------------------------------------------------
+#include <elements\OTAC.fnc>
+#include <elements\OTACstartAssembly.int>
+#include <elements\ExpanderAssembly.int>
+#include <elements\ReducerAssembly.int>
+#include <elements\BladeSegment.int>
+#include <elements\BladeRow.int>
+#include <elements\BladeGeometry.int>
+#include <elements\TransitionSection1SL.int>
+#include <elements\OTACLossModel.int>
+#include <elements\OTACLossModel_AinleyMathieson1951.int>
+
+
+real myINC = 0.;
+real myDEV = 0.*C_DEGtoRAD;
+
+
+//---------------------------------------------------------------------------
+//                         SET THE NUMBER OF STREAMS
+//---------------------------------------------------------------------------
+OTACdefaults { 
+   numberOfStreams = 3;
+} 
+
+
+//---------------------------------------------------------------------------
+//                  COUNTER-ROTATING TURBINE TEST ELEMENTS
+//---------------------------------------------------------------------------
+OTACstart start { 
+   // set the flow rate, pressure, temperature, radius and Mach number
+   W = 100.00;
+   Tt = 2800.;
+   Pt = 200.0;
+   MNdes = 0.420;
+   radiusMean_in = 12.00;
+   alpha = 35.*C_DEGtoRAD;
+
+} 
+
+
+Expander expander { 
+} 
+
+
+BladeRow rotor1 { 
+   setOption( "switchRotate", "ROTATING" );
+   setOption( "switchSpanwiseInput", "WORK" );
+   switchLossBasis = "TURBINE";
+   switchBladeAngleSign = "NEGATIVE";
+
+   radiusMean_in = 12.00;
+   dep_DESIGN_Area.eq_lhs = "Fl_O3.MN";
+   dep_DESIGN_Area.eq_rhs = "0.5000";
+
+   numberOfBlades = 80;
+   BladeGeometry S_Geometry { 
+      Table S_CHORDvR( real pctSpan ) { 
+         pctSpan = {  0.00, 1.000 }
+         bchord =  { 1.000, 1.000 }
+      } 
+   }
+
+   Table S_INPUTvR( real pctSpan ) {  
+      pctSpan = { 0.0000, 0.5000, 1.0000 } 
+      WORK  =   {  60.00,  60.00,  60.00 }
+   }
+
+   real S_INCIDENCEvR( real pctSpan ) {
+      real incidence =  myINC;
+      return incidence;
+   } 
+   deviation_in = myDEV;
+
+}
+
+
+BladeRow rotor2 { 
+   setOption( "switchRotate", "ROTATING" );
+   setOption( "switchSpanwiseInput", "WORK" );
+   switchLossBasis = "TURBINE";
+   switchBladeAngleSign = "POSITIVE";
+
+   radiusMean_in = 12.00;
+   dep_DESIGN_Area.eq_lhs = "Fl_O3.MN";
+   dep_DESIGN_Area.eq_rhs = "0.5000";
+
+   numberOfBlades = 80;
+   BladeGeometry S_Geometry { 
+      Table S_CHORDvR( real pctSpan ) { 
+         pctSpan = {  0.00, 1.000 }
+         bchord =  { 1.000, 1.000 }
+      } 
+   }
+
+   Table S_INPUTvR( real pctSpan ) {  
+      pctSpan = { 0.0000, 0.5000, 1.0000 } 
+      WORK  =   {  60.00,  60.00,  60.00 }
+   }
+
+   real S_INCIDENCEvR( real pctSpan ) {
+      real incidence =  myINC;
+      return incidence;
+   } 
+   deviation_in = myDEV;
+}
+
+
+Reducer reducer { 
+}
+
+
+FlowEnd end { }
+
+
+Shaft rotorShaft1 { 
+   ShaftInputPort Sh_ROT1;
+   Nmech = 10000.;
+}
+
+
+Shaft rotorShaft2 { 
+   ShaftInputPort Sh_ROT2;
+   Nmech = -8500.;
+}
+
+
+
+//---------------------------------------------------------------------------
+//                     LINK ALL OF THE ELEMENTS TOGETHER
+//---------------------------------------------------------------------------
+linkPorts(        "start.Fl_O",   "expander.Fl_I",  "station0" );
+linkSegmentPorts( "expander",     "rotor1",         "station1" );
+linkSegmentPorts( "rotor1",       "rotor2",         "stationR1" );
+linkSegmentPorts( "rotor2",       "reducer",        "stationR4" );
+linkPorts(        "reducer.Fl_O", "end.Fl_I",       "station2" );
+
+linkPorts( "rotor1.Sh_O", "rotorShaft1.Sh_ROT1", "mlink_r1" );
+linkPorts( "rotor2.Sh_O", "rotorShaft2.Sh_ROT2", "mlink_r2" );
+
+
+
+//---------------------------------------------------------------------------
+//                          ENABLE OTAC FLOWSTATION
+//---------------------------------------------------------------------------
+OTACenable();
+
+
+//---------------------------------------------------------------------------
+//                               CREATE VIEWER
+//---------------------------------------------------------------------------
+#include <view\OTACpage.view>
+pvStream.filename = "test_output/test_2stgCRturbine.viewOut";
+
+
+
+//---------------------------------------------------------------------------
+//                         RUN THE MODEL DESIGN POINT
+//---------------------------------------------------------------------------
+setOption( "switchDes", "DESIGN" );
+autoSolverSetup();
+
+solver.removeDependent( "rotorShaft1.integrate_Nmech" );
+solver.removeDependent( "rotorShaft2.integrate_Nmech" );
+
+run();
+OTACpage.display(); 
+
+
+// output stuff for velocity triangle plotting 
+outputVT( "test_output/test_2stgCRturbine.bladesOut" );
+
+
+
+//----------------------------------------------------------------------
+//             OFF-DESIGN POINT, CHECK ROTATION
+//----------------------------------------------------------------------
+
+// for each blade row, save the blade angles
+createBRtables();
+
+
+setOption( "switchDes", "OFFDESIGN" );
+autoSolverSetup();
+solver.removeIndependent( "rotorShaft1.ind_Nmech" );
+solver.removeIndependent( "rotorShaft2.ind_Nmech" );
+solver.removeDependent( "rotorShaft1.integrate_Nmech" );
+solver.removeDependent( "rotorShaft2.integrate_Nmech" );
+
+run();
+OTACpage.display(); 
+
+
+start.W = 85.0;
+//rotor1.rotation = -10.*C_DEGtoRAD;
+//rotor2.rotation = 5.*C_DEGtoRAD;
+rotorShaft2.Nmech = -4000.;
+run();
+OTACpage.display(); 
+
+
+rotor2.rotation = 5.*C_DEGtoRAD;
+run();
+OTACpage.display(); 
+
+

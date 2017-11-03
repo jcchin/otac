@@ -1,0 +1,295 @@
+//
+//=============================================================================
+//                                    OTAC
+//                Object-Oriented Turbomachinery Analysis Code
+//
+//     written by: Justin S. Gray, Scott M. Jones, and Thomas M. Lavelle
+//
+//=============================================================================
+
+#include <InterpIncludes.ncp>
+
+
+class Expander extends Assembly {
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++   DOCUMENTATION   ++++++++++
+   //-------------------------------------------------------------------------
+   title = "";
+
+   description = isA()+ " will take a single FlowStation and expand the 
+   results out to any number of FlowStations.  The flow will be divided 
+   into segments of equal mass flow rate with the total conditions the 
+   same at each location.  The exit alpha and mach number will vary to
+   obtain a free vortex solution at the exit. ";
+
+   usageNotes = isA() + " is used to create multiple streamlines in a 
+   turbomachinery analysis; mass flow rate is divided evenly between 
+   the stations.  The Expander normally follows an OTACstart Element and
+   requires no additional inputs by the user. "; 
+
+
+   //-------------------------------------------------------------------------
+   //               ++++++++++  SET UP VARIABLES  ++++++++++
+   //-------------------------------------------------------------------------
+   int nStreams_defaultFlag {
+      value = 1; IOstatus = INPUT; units = NONE;
+      description = "TBD";
+   }
+   int numberOfStreams {
+      value = 0; IOstatus = INPUT; units = NONE;
+      description = "number of individual streams used in calculations";
+      trigger = 1;
+   }
+   int firstPass = TRUE;  // flag used for an initial guess at exit conditions
+
+   real areaPerStream {
+      value = 0; IOstatus = OUTPUT; units = INCH2;
+      description = "average area of each individual stream";
+   }
+   real massPerStream {
+      value = 0; IOstatus = OUTPUT; units = LBM;
+      description = "amount of mass flow per individual stream";
+   }
+   real percentSpan {
+      value = 0; IOstatus = OUTPUT; units = NONE;
+      description = "location of an individual stream compared to the entire flow span";
+   }
+   real radiusMean_in {  // this is required for the OTAC perf objects
+      value = 12.; IOstatus = OUTPUT; units = INCH;
+      description = "non-input variable used for commonality with other OTAC elements";
+   }
+   real rVtheta {
+      value = 0; IOstatus = OUTPUT; units = NONE;  // in-ft/s
+      description = "circulation of the incoming stream";
+   }
+
+   real alphaExit[];  // exit alpha angle independent variable array
+   real MNexit[];     // exit Mach number independent variable array
+   real radiusExit[]; // exit radius independent variable array
+
+   string globalDefaults {
+      value = "OTACdefaults";
+      description = "TBD";
+   }
+
+   string outPorts[]; // list of output stream ports
+
+/*
+   Option switchDes {
+      allowedValues = { "DESIGN", "OFFDESIGN" };
+      description = "Design/Offdesign switch";
+      IOstatus = INPUT;
+      rewritableValues = FALSE;
+   }
+*/
+
+   //-------------------------------------------------------------------------
+   //  +++++++++  SET UP PORTS, FLOW STATIONS, SOCKETS, AND TABLES  +++++++++
+   //-------------------------------------------------------------------------
+
+   // PORTS
+   FluidInputPort Fl_I; 
+   // note: will create n FluidOutputPorts
+
+   // FLOW STATIONS
+
+   // SOCKETS
+   Socket S_PHIvR { 
+      allowedValues = { "phi_in" };
+      argTypes = { "real" };
+      returnType = "real";
+      description = "flow meridional angle radial variation socket";
+      socketType = "Function";
+   } 
+
+   // TABLES
+
+
+   //-------------------------------------------------------------------------
+   // ++++++  SET UP INTERNAL SOLVER, INDEPENDENTS, AND DEPENDENTS  ++++++
+   //-------------------------------------------------------------------------
+   Solver EXsolver {
+      defaultTolerance = 0.0001;
+      description = "local solver for this expander assembly";
+      defaultDxLimit = 0.05;
+      defaultPerturbation = 0.01;
+      maxIterations = 50;
+      maxJacobians = 100;
+   }
+
+   Dependent dep_hubRadius {
+      eq_lhs = "Fl_O1.radiusInner";
+      eq_rhs = "Fl_I.radiusInner";
+      autoSetup = TRUE;
+      description = "Force the exit hub radius to match incoming flow";
+   }
+
+
+   //-------------------------------------------------------------------------
+   //              ++++++++++  SET UP FUNCTIONS  ++++++++++
+   //-------------------------------------------------------------------------
+
+
+
+   //-------------------------------------------------------------------------
+   //          ++++++++++  VARIABLE CHANGED METHODOLOGY  ++++++++++
+   //-------------------------------------------------------------------------
+   void variableChanged( string name, any oldVal ) {
+
+      // flip the flags to indicate that defaults don't need to be used
+      if ( name == "numberOfStreams" ) {
+         nStreams_defaultFlag = 0;
+      }
+
+   }
+
+
+   void VCinit() {
+
+      // use the global default number of streams if this Flag is true
+      string varPointer;
+      if ( nStreams_defaultFlag ) {
+         varPointer = globalDefaults + ".numberOfStreams";
+         numberOfStreams = varPointer->value;
+      }
+
+      //---------------------------------------------------------
+      // create runtime objects: 
+      // 1 output port for each stream
+      // 3 Independents for each stream - MN, alpha, and radius
+      // 3n-1 Dependents for each stream
+      //---------------------------------------------------------
+      int n;  // stream number: n=i+1
+      string outPortName;
+      for ( n=1; n <= numberOfStreams; ++n ) {
+
+         // create n output ports
+         outPortName = "Fl_O" + toStr(n);
+         outPorts.append( outPortName );
+         create( "", "FluidOutputPort", outPortName );
+
+         // create 3n Independents for MN, alpha, and radius
+         string indepname;
+
+         indepname = "ind_MNout" + toStr(n);
+         create( "", "Independent", indepname );
+         indepname->varName = "MNexit[" + toStr(n-1) + "]";
+         indepname->autoSetup = TRUE;
+         indepname->description = "stream exit Mach number";
+
+         indepname = "ind_alphaOut" + toStr(n);
+         create( "", "Independent", indepname );
+         indepname->varName = "alphaExit[" + toStr(n-1) + "]";
+         indepname->autoSetup = TRUE;
+         indepname->indepRef = "PI/2.";
+         indepname->initXFunction = "xModel + 0.25"; 
+         indepname->xMappingFunction = "x - 0.25";
+         indepname->description = "stream exit flow angle";
+
+         indepname = "ind_radiusOut" + toStr(n);
+         create( "", "Independent", indepname );
+         indepname->varName = "radiusExit[" + toStr(n-1) + "]";
+         indepname->autoSetup = TRUE;
+         indepname->description = "stream exit radius";
+
+
+         // create 3n-1 Dependents for the exit state
+         string depname;
+
+         depname = "dep_freeVortex" + toStr(n);
+         create( "", "Dependent", depname );
+         depname->eq_lhs = outPortName + ".radius * " + outPortName+ ".Vtheta";
+         depname->eq_rhs = "rVtheta";
+         depname->autoSetup = TRUE;
+         depname->eq_Ref = "100.";
+         depname->description = "Match incoming stream r*Vtheta";
+
+         depname = "dep_Vm" + toStr(n);
+         create( "", "Dependent", depname );
+         depname->eq_lhs = outPortName + ".Vm";
+         depname->eq_rhs = "Fl_I.Vm";
+         depname->autoSetup = TRUE;
+         depname->description = "Match incoming stream throughflow velocity";
+
+         if ( n > 1 ) { 
+            depname = "dep_Rhub" + toStr(n) + "EqRtip" + toStr(n-1);
+            create( "", "Dependent", depname );
+            depname->eq_lhs = outPortName + ".radiusInner";
+            depname->eq_rhs = "Fl_O" + toStr(n-1) + ".radiusOuter";
+            depname->autoSetup = TRUE;
+            depname->description = "Match blade segment radii to each other";
+         } 
+
+      }
+
+      solverSequence.append( "calculations" );
+   }
+
+
+   //-------------------------------------------------------------------------
+   //        ++++++++++  PERFORM ENGINEERING CALCULATIONS  ++++++++++
+   //-------------------------------------------------------------------------
+   void calculations() {
+//cerr << "Running expander element \n";
+      // get the incoming conditions
+      real Pt_in = Fl_I.Pt;
+      real Tt_in = Fl_I.Tt;
+      real Mach_in = Fl_I.MN;
+      real alpha_in = Fl_I.alpha;
+      real phi_in = Fl_I.phi;
+      real Ri, Ro;
+      radiusMean_in = Fl_I.radius;
+
+      // divide up the streams evenly
+      massPerStream = Fl_I.W / toReal( numberOfStreams );
+      areaPerStream = Fl_I.area / toReal( numberOfStreams );
+      rVtheta = Fl_I.radius * Fl_I.Vtheta;
+
+
+      int i;  // index for stream arrays: i=n-1
+      for ( i=0; i < numberOfStreams; ++i ) {
+
+         outPorts[i]->copyFlow("Fl_I");
+
+         if ( firstPass == TRUE ) { 
+
+            // estimate each stream's inner and outer radii assuming equal area
+            // use incoming value as initial guess for MN and alpha 
+            if ( i==0 ) { 
+               Ri = Fl_I.radiusInner; 
+            } 
+            else { 
+               Ri = Ro;  // Ri equals the previous Ro
+            } 
+            Ro = sqrt( Ri**2.0 + (areaPerStream*cos(phi_in) / PI) );
+
+            radiusExit.append( ( Ri + Ro ) /2. );
+            MNexit.append( Mach_in );
+            alphaExit.append( alpha_in );
+
+         } 
+
+         // account for meridional angle variation if input by user
+         percentSpan = ( radiusExit[i] - Fl_I.radiusInner ) / 
+                       ( Fl_I.radiusOuter - Fl_I.radiusInner );
+
+         if ( !S_PHIvR.isEmpty() ) {
+            phi_in = S_PHIvR( percentSpan ) * PI/180.;
+         } 
+
+         // set exit state of each stream
+         outPorts[i]->W = massPerStream;
+         outPorts[i]->radius = radiusExit[i];
+         outPorts[i]->omega = 0.;
+         outPorts[i]->setTotalTP( Tt_in, Pt_in );
+         outPorts[i]->setVs_alphaPhiMN( alphaExit[i], phi_in, MNexit[i] );
+
+      } 
+
+      firstPass = FALSE;
+
+   }  // end calculate
+
+}
+
