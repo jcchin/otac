@@ -36,7 +36,7 @@ real myDEV = 0.*C_DEGtoRAD;
 //                         SET THE NUMBER OF STREAMS
 //---------------------------------------------------------------------------
 OTACdefaults { 
-   numberOfStreams = 3;
+   numberOfStreams = 1;
 } 
 
 
@@ -45,14 +45,15 @@ OTACdefaults {
 //---------------------------------------------------------------------------
 OTACstart start { 
    // set the flow rate, pressure, temperature, radius and Mach number
-   W = 100.00;
+   W = 100;//
    Tt = 2800.;
    Pt = 200.0;
-   MNdes = 0.420;
-   radiusMean_in = 12.00;
+   MNdes = 0.42;
+   radiusMean_in = 5.00;
    alpha = 35.*C_DEGtoRAD;
 
 } 
+
 
 
 Expander expander { 
@@ -65,12 +66,13 @@ BladeRow rotor1 {
    switchLossBasis = "TURBINE";
    switchBladeAngleSign = "NEGATIVE";
 
+   loss_in = 0.05;
    radiusMean_in = 12.00;
    dep_DESIGN_Area.eq_lhs = "Fl_O3.MN";
    dep_DESIGN_Area.eq_rhs = "0.5000";
 
    numberOfBlades = 80;
-   BladeGeometry S_Geometry { 
+   BladeGeometry S_Geometry {
       Table S_CHORDvR( real pctSpan ) { 
          pctSpan = {  0.00, 1.000 }
          bchord =  { 1.000, 1.000 }
@@ -90,19 +92,29 @@ BladeRow rotor1 {
 
 }
 
+//rotor1.addSubelementToStack( "AM_LossModel", "rotorLoss" );
 
 BladeRow rotor2 { 
    setOption( "switchRotate", "ROTATING" );
    setOption( "switchSpanwiseInput", "WORK" );
    switchLossBasis = "TURBINE";
    switchBladeAngleSign = "POSITIVE";
+   addSubelementToStack( "AM_LossModel", "rotorLoss" );
 
+   loss_in = 0.1;
    radiusMean_in = 12.00;
    dep_DESIGN_Area.eq_lhs = "Fl_O3.MN";
    dep_DESIGN_Area.eq_rhs = "0.5000";
 
    numberOfBlades = 80;
    BladeGeometry S_Geometry { 
+      chord_in = 1.0;
+      bladeRc_in = 8.000; //8.000;
+      opening_in = 0.250; //1.0000;
+      TEthickness_in = 0.020;
+      thicknessToChord_in = 0.20;
+      tipClearance_in = 0.0;  //0.01715;
+      staggerAngle_in = 30.*PI/180.;
       Table S_CHORDvR( real pctSpan ) { 
          pctSpan = {  0.00, 1.000 }
          bchord =  { 1.000, 1.000 }
@@ -126,7 +138,33 @@ Reducer reducer {
 }
 
 
-FlowEnd end { }
+FlowEnd end { 
+
+   real stageWC, stagePR, stageEFF, stageEFF2, stageTR, dhIdeal;
+   FlowStation ideal;
+   real stage1Eff, stage1PR;
+   FlowStation temp1;
+ 
+   void postexecute() {
+ 
+      ideal.copyFlow( "expander.Fl_O1" );
+ 
+      stageWC = start.W/2.2046;
+      stagePR = reducer.Fl_I1.Pt / expander.Fl_O1.Pt;
+      stageTR = (reducer.Fl_I1.Tt-0.6) / expander.Fl_O1.Tt;
+      dhIdeal = -ideal.getIdealWork( reducer.Fl_I1.Pt );
+      stageEFF = dhIdeal / (reducer.Fl_I1.ht - expander.Fl_O1.ht);
+      stageEFF2 = (stagePR**0.2857 - 1.)/(stageTR - 1.);
+
+      temp1.copyFlow("start.Fl_O");
+      temp1.setTotalSP(reducer.Fl_I2.s, expander.Fl_O2.Pt);
+      stage1Eff = (reducer.Fl_I2.ht - expander.Fl_O2.ht)/( reducer.Fl_I2.ht - temp1.ht );
+      stage1PR = reducer.Fl_I2.Pt/expander.Fl_O2.Pt;
+      //stage1HP = rotor1.Sh_O.pwr;
+     
+   }
+
+}
 
 
 Shaft rotorShaft1 { 
@@ -173,6 +211,16 @@ pvStream.filename = "test_output/test_2stgCRturbine.viewOut";
 //---------------------------------------------------------------------------
 //                         RUN THE MODEL DESIGN POINT
 //---------------------------------------------------------------------------
+
+//Jeff
+// start.W = 23.49;
+// start.MNdes = 0.42;
+// start.radiusMean_in = 5.0;
+// rotor1.radiusMean_in = 5.00;
+// rotor2.radiusMean_in = 5.00;
+// rotorShaft1.Nmech = 20000.;
+// rotorShaft2.Nmech = -17000.;
+
 setOption( "switchDes", "DESIGN" );
 autoSolverSetup();
 
@@ -181,7 +229,7 @@ solver.removeDependent( "rotorShaft2.integrate_Nmech" );
 
 run();
 OTACpage.display(); 
-
+cout << end.stage1Eff << endl;
 
 // output stuff for velocity triangle plotting 
 outputVT( "test_output/test_2stgCRturbine.bladesOut" );
@@ -207,16 +255,15 @@ run();
 OTACpage.display(); 
 
 
-start.W = 85.0;
+start.W = 85.0;//
 //rotor1.rotation = -10.*C_DEGtoRAD;
 //rotor2.rotation = 5.*C_DEGtoRAD;
 rotorShaft2.Nmech = -4000.;
 run();
 OTACpage.display(); 
-
-
-rotor2.rotation = 5.*C_DEGtoRAD;
-run();
-OTACpage.display(); 
+cout << "worked!" << endl;
+// rotor2.rotation = 5.*C_DEGtoRAD;
+// run();
+// OTACpage.display(); 
 
 
