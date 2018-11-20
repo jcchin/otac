@@ -36,7 +36,7 @@ real myDEV = 0.*C_DEGtoRAD;
 //                         SET THE NUMBER OF STREAMS
 //---------------------------------------------------------------------------
 OTACdefaults { 
-   numberOfStreams = 3;
+   numberOfStreams = 4;
 } 
 
 
@@ -45,12 +45,12 @@ OTACdefaults {
 //---------------------------------------------------------------------------
 OTACstart start { 
    // set the flow rate, pressure, temperature, radius and Mach number
-   W = 100.00;
-   Tt = 2800.;
-   Pt = 200.0;
-   MNdes = 0.420;
-   radiusMean_in = 12.00;
-   alpha = 35.*C_DEGtoRAD;
+   W = 3.00;
+   Tt = 3077.;
+   Pt = 145.0;
+   MNdes = 0.2;
+   radiusMean_in = 3.05;
+   alpha = 45.*C_DEGtoRAD;
 
 } 
 
@@ -65,9 +65,9 @@ BladeRow rotor1 {
    switchLossBasis = "TURBINE";
    switchBladeAngleSign = "NEGATIVE";
 
-   radiusMean_in = 12.00;
+   radiusMean_in = 3.3;
    dep_DESIGN_Area.eq_lhs = "Fl_O3.MN";
-   dep_DESIGN_Area.eq_rhs = "0.5000";
+   dep_DESIGN_Area.eq_rhs = "0.49000";
 
    numberOfBlades = 80;
    BladeGeometry S_Geometry { 
@@ -79,7 +79,7 @@ BladeRow rotor1 {
 
    Table S_INPUTvR( real pctSpan ) {  
       pctSpan = { 0.0000, 0.5000, 1.0000 } 
-      WORK  =   {  60.00,  60.00,  60.00 }
+      WORK  =   {  66.00,  66.00,  66.00 }
    }
 
    real S_INCIDENCEvR( real pctSpan ) {
@@ -97,7 +97,7 @@ BladeRow rotor2 {
    switchLossBasis = "TURBINE";
    switchBladeAngleSign = "POSITIVE";
 
-   radiusMean_in = 12.00;
+   radiusMean_in = 3.5;
    dep_DESIGN_Area.eq_lhs = "Fl_O3.MN";
    dep_DESIGN_Area.eq_rhs = "0.5000";
 
@@ -111,7 +111,7 @@ BladeRow rotor2 {
 
    Table S_INPUTvR( real pctSpan ) {  
       pctSpan = { 0.0000, 0.5000, 1.0000 } 
-      WORK  =   {  60.00,  60.00,  60.00 }
+      WORK  =   {  100.00,  100.00,  100.00 }
    }
 
    real S_INCIDENCEvR( real pctSpan ) {
@@ -131,13 +131,13 @@ FlowEnd end { }
 
 Shaft rotorShaft1 { 
    ShaftInputPort Sh_ROT1;
-   Nmech = 10000.;
+   Nmech = 38000.;
 }
 
 
 Shaft rotorShaft2 { 
    ShaftInputPort Sh_ROT2;
-   Nmech = -8500.;
+   Nmech = -38000.;
 }
 
 
@@ -207,16 +207,16 @@ run();
 OTACpage.display(); 
 
 
-start.W = 85.0;
-//rotor1.rotation = -10.*C_DEGtoRAD;
-//rotor2.rotation = 5.*C_DEGtoRAD;
-rotorShaft2.Nmech = -4000.;
-run();
-OTACpage.display(); 
+// start.W = 85.0;
+// //rotor1.rotation = -10.*C_DEGtoRAD;
+// //rotor2.rotation = 5.*C_DEGtoRAD;
+// //rotorShaft2.Nmech = -4000.;
+// run();
+// OTACpage.display(); 
 
 
-rotor2.rotation = 5.*C_DEGtoRAD;
-run();
-OTACpage.display(); 
+// rotor2.rotation = 5.*C_DEGtoRAD;
+// run();
+// OTACpage.display(); 
 
 

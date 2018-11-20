@@ -213,18 +213,18 @@ void outputVT( string fname ) {
       pyout << "   'shape'       : " << "'" << BR[row]->switchBladeAngleSign << "'," << endl;
       pyout << "   'bladerowName': " << "'" << BR[row] << "'," << endl;
       pyout << "   'velocityIn'  : " << BR[row]->bladeSegment_1.Fl_IR.Vflow <<"," << endl;
-      pyout << "   'alphaIn'     : " << BR[row]->bladeSegment_1.Fl_IR.alpha <<"," << endl;
+      pyout << "   'alphaIn'     : " << BR[row]->bladeSegment_1.Fl_IR.alpha*180/PI <<"," << endl;
       pyout << "   'UbladeIn'    : " << BR[row]->bladeSegment_1.Fl_IR.U <<"," << endl;
       pyout << "   'vRelIn'      : " << BR[row]->bladeSegment_1.Fl_IR.Vrel <<"," << endl;
-      pyout << "   'betaIn'      : " << BR[row]->bladeSegment_1.Fl_IR.beta <<"," << endl;
-      pyout << "   'bladeAngleIn': " << BR[row]->bladeSegment_1.bladeInletAngle <<"," << endl;
+      pyout << "   'betaIn'      : " << BR[row]->bladeSegment_1.Fl_IR.beta*-180/PI <<"," << endl;
+      pyout << "   'bladeAngleIn': " << BR[row]->bladeSegment_1.bladeInletAngle*180/PI <<"," << endl;
 
       pyout << "   'velocityOut' : " << BR[row]->bladeSegment_1.Fl_OR.Vflow <<"," << endl;
-      pyout << "   'alphaOut'    : " << BR[row]->bladeSegment_1.Fl_OR.alpha <<"," << endl;
+      pyout << "   'alphaOut'    : " << BR[row]->bladeSegment_1.Fl_OR.alpha*180/PI <<"," << endl;
       pyout << "   'UbladeOut'   : " << BR[row]->bladeSegment_1.Fl_OR.U <<"," << endl;
       pyout << "   'vRelOut'     : " << BR[row]->bladeSegment_1.Fl_OR.Vrel <<"," << endl;
-      pyout << "   'betaOut'     : " << BR[row]->bladeSegment_1.Fl_OR.beta <<"," << endl;
-      pyout << "   'bladeAngleOut':" << BR[row]->bladeSegment_1.bladeExitAngle << endl;
+      pyout << "   'betaOut'     : " << BR[row]->bladeSegment_1.Fl_OR.beta*-180/PI <<"," << endl;
+      pyout << "   'bladeAngleOut':" << BR[row]->bladeSegment_1.bladeExitAngle*180/PI << endl;
 
       pyout << " }" << endl;
       pyout << endl;
