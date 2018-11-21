@@ -138,7 +138,7 @@ def MSR( scaleFactor, rotationAngle, xa, ya, xb, yb ):
 
    rotation = rotationAngle*numpy.pi/180.
 
-   for i in xrange(0,len(xArc),1):
+   for i in range(0,len(xArc),1):
 
       getAngleAndDistance( xArc[i] - (xArc[0]-xa), xb, yArc[i] - (yArc[0]-ya), yb )
       xCL.append( xb + distance*scaleFactor*numpy.cos( angle+rotation ) )
@@ -171,13 +171,13 @@ def circularArc( turningAngle, pct1, pct2 ):
       arcLength = radius*turning
 
       # x,y points determined by equally spaced arcs
-      for i in xrange( 0, 101, 1 ):
+      for i in range( 0, 101, 1 ):
          alpha = -turning/2. + (i/100.)*turning
          xArc.append( x0 + radius*numpy.sin( alpha ) )
          yArc.append( y0 + radius*numpy.cos( alpha ) )
 
    else:
-      for i in xrange( 0, 101, 1 ):
+      for i in range( 0, 101, 1 ):
          x = i*xf/100.
          y = a*(x**2.) + b*x
          xArc.append( x )
@@ -190,7 +190,7 @@ def surface( angle1, turning, tqc, len1, len2, istart, thkDef ):
    '''creates an upper and lower surface for a defined camber line'''
 
    # note: 'upper' is suction surface, 'lower' is pressure surface
-   for i in xrange( 0, 101, 1 ):
+   for i in range( 0, 101, 1 ):
       alpha = (angle1 - (i/100.)*turning + 90. )*numpy.pi/180.
 
       thick = tqc*getThickness( len1, len2, i, thkDef )
@@ -328,7 +328,7 @@ def genXYpoints( length, angle ):
     xpnts.append( oldx )
     ypnts.append( oldy )
 
-    for i in xrange(5):
+    for i in range(5):
 
         newx = oldx + length/5*numpy.cos(angle)
         newy = oldy - length/5*numpy.sin(angle)
@@ -543,7 +543,8 @@ def plotSLVelocityTriangles():
                      length_includes_head='true', color='blue' )
 
 
-execfile( 'test20_2stgCRturbine.bladesOut' )
+#exec(open('./test20_2stgCRturbine.bladesOut' ).read())
+exec(open("./test_output/test_2stgCRturbine.bladesOut").read())
 #execfile( 'Z_AMlossModel.bladesOut' )
 #execfile( 'ztest01_incDevRot.bladesOut' )
 #execfile( 'Z_NASA23B_20.bladesOut' )
