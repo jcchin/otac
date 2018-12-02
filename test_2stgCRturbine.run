@@ -46,7 +46,7 @@ OTACdefaults {
 OTACstart start { 
    // set the flow rate, pressure, temperature, radius and Mach number
    W = 2.79; //2.79
-   Tt = 2800.; //2445
+   Tt = 2500.; //2445  //2800
    Pt = 39.7; //39.7
    MNdes = 0.485;
    radiusMean_in = 3.5;
@@ -67,7 +67,7 @@ BladeRow rotor1 {
 
    radiusMean_in = 3.6;
    dep_DESIGN_Area.eq_lhs = "Fl_O3.MN";
-   dep_DESIGN_Area.eq_rhs = "0.50";
+   dep_DESIGN_Area.eq_rhs = "0.54";
 
    numberOfBlades = 80;
    BladeGeometry S_Geometry { 
@@ -97,9 +97,9 @@ BladeRow rotor2 {
    switchLossBasis = "TURBINE";
    switchBladeAngleSign = "POSITIVE";
 
-   radiusMean_in = 4.6;
+   radiusMean_in = 4.9;
    dep_DESIGN_Area.eq_lhs = "Fl_O3.MN";
-   dep_DESIGN_Area.eq_rhs = "0.60";
+   dep_DESIGN_Area.eq_rhs = "0.63";
 
    numberOfBlades = 80;
    BladeGeometry S_Geometry { 
@@ -126,7 +126,34 @@ Reducer reducer {
 }
 
 
-FlowEnd end { }
+FlowEnd end { 
+
+   real stageWC, stagePR, stageEFF, stageEFF2, stageTR, dhIdeal;
+   FlowStation ideal;
+   real stage1Eff, stage1PR;
+   FlowStation temp1;
+ 
+   void postexecute() {
+ 
+      ideal.copyFlow( "expander.Fl_O2" );
+ 
+      stageWC = start.W/2.2046;
+      stagePR = reducer.Fl_I1.Pt / expander.Fl_O1.Pt;
+      stageTR = (reducer.Fl_I1.Tt-0.6) / expander.Fl_O1.Tt;
+      dhIdeal = -ideal.getIdealWork( reducer.Fl_I1.Pt );
+      stageEFF = dhIdeal / (reducer.Fl_I1.ht - expander.Fl_O1.ht);
+      stageEFF2 = (stagePR**0.2857 - 1.)/(stageTR - 1.);
+
+      temp1.copyFlow("start.Fl_O");
+      temp1.setTotalSP(reducer.Fl_I2.s, expander.Fl_O2.Pt);
+      stage1Eff = (reducer.Fl_I2.ht - expander.Fl_O2.ht)/( reducer.Fl_I2.ht - temp1.ht );
+      stage1PR = reducer.Fl_I2.Pt/expander.Fl_O2.Pt;
+      //stage1HP = rotor1.Sh_O.pwr;
+     
+   }
+
+}
+
 
 
 Shaft rotorShaft1 { 
@@ -181,7 +208,7 @@ solver.removeDependent( "rotorShaft2.integrate_Nmech" );
 
 run();
 OTACpage.display(); 
-
+cout << end.stage1Eff << endl;
 
 // output stuff for velocity triangle plotting 
 outputVT( "test_output/test_2stgCRturbine.bladesOut" );
