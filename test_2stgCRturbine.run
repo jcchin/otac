@@ -45,12 +45,12 @@ OTACdefaults {
 //---------------------------------------------------------------------------
 OTACstart start { 
    // set the flow rate, pressure, temperature, radius and Mach number
-   W = 3.00;
-   Tt = 3077.;
-   Pt = 145.0;
-   MNdes = 0.2;
-   radiusMean_in = 3.05;
-   alpha = 45.*C_DEGtoRAD;
+   W = 4.1; //2.732
+   Tt = 2700.; //2600
+   Pt = 47.0; //47
+   MNdes = 0.485;
+   radiusMean_in = 3.65;
+   alpha = 38.*C_DEGtoRAD;
 
 } 
 
@@ -65,9 +65,9 @@ BladeRow rotor1 {
    switchLossBasis = "TURBINE";
    switchBladeAngleSign = "NEGATIVE";
 
-   radiusMean_in = 3.3;
+   radiusMean_in = 4.0;
    dep_DESIGN_Area.eq_lhs = "Fl_O3.MN";
-   dep_DESIGN_Area.eq_rhs = "0.49000";
+   dep_DESIGN_Area.eq_rhs = "0.5000";
 
    numberOfBlades = 80;
    BladeGeometry S_Geometry { 
@@ -79,7 +79,7 @@ BladeRow rotor1 {
 
    Table S_INPUTvR( real pctSpan ) {  
       pctSpan = { 0.0000, 0.5000, 1.0000 } 
-      WORK  =   {  66.00,  66.00,  66.00 }
+      WORK  =   {  80.00,  80.00,  80.00 }
    }
 
    real S_INCIDENCEvR( real pctSpan ) {
@@ -97,9 +97,9 @@ BladeRow rotor2 {
    switchLossBasis = "TURBINE";
    switchBladeAngleSign = "POSITIVE";
 
-   radiusMean_in = 3.5;
+   radiusMean_in = 4.6;
    dep_DESIGN_Area.eq_lhs = "Fl_O3.MN";
-   dep_DESIGN_Area.eq_rhs = "0.5000";
+   dep_DESIGN_Area.eq_rhs = "0.510";
 
    numberOfBlades = 80;
    BladeGeometry S_Geometry { 
@@ -111,7 +111,7 @@ BladeRow rotor2 {
 
    Table S_INPUTvR( real pctSpan ) {  
       pctSpan = { 0.0000, 0.5000, 1.0000 } 
-      WORK  =   {  100.00,  100.00,  100.00 }
+      WORK  =   {  105.00,  105.00,  105.00 }
    }
 
    real S_INCIDENCEvR( real pctSpan ) {
