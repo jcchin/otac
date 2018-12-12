@@ -1,6 +1,6 @@
 //
 //---------------------------------------------------------------------------
-//          OTAC test model of 2-stage counter-rotating turbine
+//  OTAC model of 2-stage counter-rotating turbine for AAE538 Hybrid Electric
 //
 //---------------------------------------------------------------------------
 
@@ -45,9 +45,9 @@ OTACdefaults {
 //---------------------------------------------------------------------------
 OTACstart start { 
    // set the flow rate, pressure, temperature, radius and Mach number
-   W = 2.79; //2.79
-   Tt = 2500.; //2445  //2800
-   Pt = 39.7; //39.7
+   W = 2.79; 
+   Tt = 2500.; 
+   Pt = 39.7; 
    MNdes = 0.485;
    radiusMean_in = 3.5;
    alpha = 39.*C_DEGtoRAD;
@@ -64,6 +64,7 @@ BladeRow rotor1 {
    setOption( "switchSpanwiseInput", "WORK" );
    switchLossBasis = "TURBINE";
    switchBladeAngleSign = "NEGATIVE";
+   //addSubelementToStack( "AM_LossModel", "rotorLoss" ); Ainley Matheson Loss Model
 
    radiusMean_in = 3.6;
    dep_DESIGN_Area.eq_lhs = "Fl_O3.MN";
@@ -96,6 +97,7 @@ BladeRow rotor2 {
    setOption( "switchSpanwiseInput", "WORK" );
    switchLossBasis = "TURBINE";
    switchBladeAngleSign = "POSITIVE";
+   //addSubelementToStack( "AM_LossModel", "rotorLoss" );
 
    radiusMean_in = 4.9;
    dep_DESIGN_Area.eq_lhs = "Fl_O3.MN";
@@ -155,7 +157,7 @@ FlowEnd end {
 }
 
 
-
+ 
 Shaft rotorShaft1 { 
    ShaftInputPort Sh_ROT1;
    Nmech = 38000.;
@@ -234,10 +236,10 @@ run();
 OTACpage.display(); 
 
 
-// start.W = 85.0;
+// start.W = 3.0;     // Check Off-Design
 // //rotor1.rotation = -10.*C_DEGtoRAD;
 // //rotor2.rotation = 5.*C_DEGtoRAD;
-// //rotorShaft2.Nmech = -4000.;
+// //rotorShaft2.Nmech = -30000.;
 // run();
 // OTACpage.display(); 
 

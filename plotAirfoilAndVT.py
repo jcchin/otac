@@ -398,7 +398,7 @@ def plotVelocityTriangles():
        stag = ( -BR ['bladeAngleIn'] - BR ['bladeAngleOut'] )/2.
        xStart = offsetx + 50.*numpy.cos( BR ['betaIn']*c_DEGtoRAD )
        yStart = offsety - 50.*numpy.sin( BR ['betaIn']*c_DEGtoRAD )
-       genAirfoil( turn, 0., 0., 1.00, 0.00, 0.00, 0.60, "Aseries", stag, leng )
+       genAirfoil( turn, 0., 0., 1.00, 0.00, 0.00, 0.60, "Tseries", stag, leng )
     else:
        #print "most likely turbine blade"
        leng = 800.
@@ -516,7 +516,7 @@ def plotSLVelocityTriangles():
        stag = ( -BR['bladeAngleIn'][i] - BR['bladeAngleOut'][i] )/2.
        xStart = offsetx + 50.*numpy.cos( BR['betaIn'][i]*c_DEGtoRAD )
        yStart = offsety - 50.*numpy.sin( BR['betaIn'][i]*c_DEGtoRAD )
-       genAirfoil( turn, 0., 0., 1.00, 0.00, 0.00, 0.60, "Aseries", stag, leng )
+       genAirfoil( turn, 0., 0., 1.00, 0.00, 0.00, 0.60, "Tseries", stag, leng )
 
        # exit absolute (positive alpha is -y direction)
        # offsets need to be equal to airfoil TE point
